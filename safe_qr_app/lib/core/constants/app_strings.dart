@@ -5,17 +5,19 @@ abstract final class AppStrings {
   static const String tabGenerator = 'Gerar';
   static const String tabHistory = 'Histórico';
   static const String splashTagline = 'Analise antes de abrir';
-  static const String readerTitle = 'Ler QR Code';
-  static const String readerHelpRemote = 'Enquadre o QR. O conteúdo bruto segue (RF) para a API (HTTPS) em [POST /v1/qr/analyze] — minimizando metadados extras.';
-  static const String readerHelpLocal = 'Enquadre o QR. Modo S1: heurística no aparelho (sec. 2.3) — ative ANALYZE_MODE=remote no .env após o backend subir (mesmo contrato de resposta).';
-  static const String readerModeLocalBanner = 'Análise local (sem API). A privacidade é máxima; a cobertura de ameaças ainda é limitada.';
-  static const String readerModeRemoteBanner = 'Análise remota ativa. Exige backend e rede estáveis; mensagens de erro (RF-M10) são exibidas se falhar.';
+  static const String readerTitle = 'Aponte para o código';
+  static const String readerHelpRemote =
+      'Enquadre o código na área da câmera. Em seguida mostramos se o destino parece seguro — só então você decide abrir ou não.';
+  static const String readerHelpLocal =
+      'Enquadre o código na área da câmera. Fazemos uma verificação rápida aqui no aparelho; em conexão com a internet a checagem pode ser mais completa.';
+  static const String readerModeLocalBanner =
+      'Neste modo a verificação fica no celular. Prefira códigos de lugares e pessoas em que você confia.';
   static const String permissionCameraDenied = 'Permissão da câmera negada. Ative nas configurações do sistema.';
   static const String analyzing = 'Analisando...';
   static const String readerLoadingTitle = 'Analisando QR Code';
   static const String readerLoadingSubtitle = 'Por favor, aguarde…';
   static const String readerResultStayInApp = 'Permanecer no app';
-  static const String readerResultOpenDestination = 'Abrir destino';
+  static const String readerResultOpenDestination = 'Abrir no navegador';
   static const String readerResultCopyDone = 'Copiado para a área de transferência.';
   static const String readerResultHint = 'A decisão é sua: abra o destino com cuidado ou fique no app.';
   static const String readerResultNotUrlHint = 'Isto não parece um link HTTP/HTTPS. Use copiar se quiser usar o texto em outro app.';
@@ -25,7 +27,7 @@ abstract final class AppStrings {
   static const String timeoutError = 'O servidor demorou a responder. Tente de novo.';
   static const String invalidResponse = 'Resposta inválida do servidor.';
   static const String cancel = 'Cancelar';
-  static const String openLink = 'Abrir link';
+  static const String openLink = 'Abrir no navegador';
   static const String copy = 'Copiar';
   static const String backToReader = 'Voltar ao leitor';
   static const String safeLabel = 'Seguro';

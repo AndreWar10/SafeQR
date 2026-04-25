@@ -1,6 +1,6 @@
 # Safe QR — Status para 2ª Sprint (P.I.) e próxima entrega
 
-**Objetivo deste documento:** apoio à apresentação da **2ª Sprint (24/04)** e registo do que já está feito vs. o que o enunciado pede, com visão para a **mensageria (Pub/Sub)** na sprint seguinte.
+**Objetivo deste documento:** apoio à apresentação da **2ª Sprint (24/04)** e registo do que já está feito vs. o que o enunciado pede, com **stack**, **arquitetura** e visão para **mensageria (Pub/Sub)** na sprint seguinte.
 
 **Referência do professor — entrega intermédia:**
 
@@ -20,7 +20,129 @@ Para o checklist literal da 2ª sprint, **falta fechar** sobretudo: **CRUD no se
 
 ---
 
-## 2. Cruzamento com o checklist da 2ª Sprint
+## 2. Stack técnica (resumo para slides)
+
+### Mobile — `safe_qr_app` (Flutter)
+
+| Camada / uso | Tecnologia |
+|--------------|------------|
+| Framework | **Flutter** (Dart **SDK ^3.11**) |
+| Estado global leve | **provider** |
+| Injeção de dependências | **get_it** |
+| HTTP / timeouts | **dio** |
+| Config local | **flutter_dotenv** (`assets/.env`) |
+| Câmera / leitura QR | **mobile_scanner** |
+| Geração de QR | **qr_flutter** |
+| Abrir links no navegador | **url_launcher** (`LaunchMode.externalApplication`) |
+| Histórico no dispositivo | **sqflite** + **path** / **path_provider** |
+| Preferências (tema, etc.) | **shared_preferences** |
+| Nuvem (cliente Firebase) | **firebase_core**, **cloud_firestore** (inicialização; evolução futura) |
+| Testes | **flutter_test**, **mocktail** |
+
+### API — `safe_qr_back` (Node.js)
+
+| Camada / uso | Tecnologia |
+|--------------|------------|
+| Runtime | **Node.js ≥ 20** |
+| Linguagem | **TypeScript** (strict, ESM `type: module`) |
+| Servidor HTTP | **Fastify 5** |
+| CORS | **@fastify/cors** |
+| Validação de entrada | **Zod** |
+| Logs | **Pino** (+ **pino-pretty** em dev) |
+| Variáveis de ambiente | **dotenv** (ficheiro `.env` na raiz do back) |
+| Lista de clones (servidor) | **firebase-admin** (Firestore **read**) |
+| Testes / CI local | **Vitest** |
+| Qualidade | **ESLint**, **Prettier** |
+| Execução dev | **tsx** (`npm run dev`) |
+
+### Nuvem (estado atual)
+
+| Serviço | Uso no projeto |
+|---------|----------------|
+| **Firebase / Google Cloud** | Projeto Firebase ligado ao app (FlutterFire) e à mesma conta para **Firestore** |
+| **Cloud Firestore** | Documento **`suspicious_hosts` / `clones`**, campo **`urls`** (lista de URLs/hosts de alerta) lida pela API com **Admin SDK** |
+
+---
+
+## 3. Arquitetura lógica
+
+### 3.1 Visão em blocos
+
+```mermaid
+flowchart LR
+  subgraph device[Telemóvel - Flutter]
+    UI[UI - abas Ler / Gerar / Histórico]
+    CAM[Câmera - mobile_scanner]
+    SQLITE[(SQLite - histórico)]
+    DIO[Dio - HTTP]
+    UI --> CAM
+    UI --> DIO
+    UI --> SQLITE
+  end
+  subgraph lan[Rede local / internet]
+    API[Node - Fastify :3000]
+  end
+  subgraph gcp[Google Cloud - Firebase]
+    FS[(Firestore)]
+  end
+  DIO -->|POST /v1/qr/analyze| API
+  API -->|leitura lista clones| FS
+```
+
+### 3.2 Camadas no código (disciplina de projeto)
+
+**Mobile (clean-ish por feature):** pastas `lib/features/*` com **presentation** (páginas, widgets, view models), **domain** (entidades, casos de uso), **data** (repositórios, DTOs, integração Dio / SQLite). **Core:** tema, rede, config, constantes. **App:** `main.dart`, router/shell, `dependency_injection.dart`.
+
+**Back:** `routes` regista rotas; **controllers** validam limites e chamam **services**; **services** concentram a heurística de análise e a integração com **Firestore** (porta injetável); **schemas** (Zod); **views** serializam JSON de resposta/erro.
+
+### 3.3 Fluxo principal — scan com análise remota
+
+```mermaid
+sequenceDiagram
+  participant U as Utilizador
+  participant A as App Flutter
+  participant B as API Fastify
+  participant F as Firestore
+  U->>A: Aponta câmera ao QR
+  A->>B: POST /v1/qr/analyze JSON rawContent
+  B->>F: Ler suspicious_hosts/clones urls cache
+  F-->>B: Lista de hosts
+  B->>B: Heurística + cruzamento lista
+  B-->>A: 200 verdict reasons parsed
+  A->>A: Grava histórico SQLite
+  A-->>U: Ecrã resultado + abrir no navegador
+```
+
+---
+
+## 4. API REST atual (sem CRUD completo)
+
+| Método | Caminho | Descrição |
+|--------|---------|-----------|
+| `GET` | `/v1/health` | Health check |
+| `GET` | `/health` | Alias do health |
+| `POST` | `/v1/qr/analyze` | Corpo: `rawContent` (+ `client` opcional). Resposta: `requestId`, `verdict`, `safeToOpen`, `reasons`, `parsed` |
+
+**Erros comuns:** `400` (validação Zod), `413` (payload acima do limite configurável).
+
+**Variáveis de ambiente relevantes (back):** `PORT`, `MAX_RAW_CONTENT_BYTES`, `GOOGLE_APPLICATION_CREDENTIALS` ou `FIREBASE_SERVICE_ACCOUNT_JSON`, `FIRESTORE_SUSPICIOUS_CACHE_MS`, `LOG_LEVEL`, `NODE_ENV`. Ver `safe_qr_back/.env.example`.
+
+---
+
+## 5. Estrutura do repositório (mono-pasta mobile)
+
+```
+safe-qr-mobile/
+├── docs/                    ← documentação de sprint / arquitetura
+├── safe_qr_app/             ← Flutter (app Android principal)
+└── safe_qr_back/            ← API Node (Fastify) + testes
+```
+
+O back **não** está num repositório separado neste layout; sobe com `cd safe_qr_back && npm run dev`.
+
+---
+
+## 6. Cruzamento com o checklist da 2ª Sprint
 
 | Exigência | Estado atual | Notas / evidências sugeridas |
 |-----------|--------------|------------------------------|
@@ -32,7 +154,7 @@ Para o checklist literal da 2ª sprint, **falta fechar** sobretudo: **CRUD no se
 
 ---
 
-## 3. O que já está feito (lista objetiva)
+## 7. O que já está feito (lista objetiva)
 
 ### Mobile (`safe_qr_app`)
 
@@ -54,7 +176,7 @@ Para o checklist literal da 2ª sprint, **falta fechar** sobretudo: **CRUD no se
 
 ---
 
-## 4. O que falta para “cumprir ao pé da letra” o checklist
+## 8. O que falta para “cumprir ao pé da letra” o checklist
 
 1. **CRUD no back:** pelo menos **criar + listar** um recurso (ex.: registo de análise agregada ou itens de demo) persistido em **Firestore** ou **SQL**, com **seed** de dados de teste.
 2. **Documentação de nuvem:** 1–2 páginas com **diagrama** (app → API → Firestore), **variáveis de ambiente** em produção, e **evidência** (print da consola ou URL pública se existir deploy).
@@ -62,7 +184,7 @@ Para o checklist literal da 2ª sprint, **falta fechar** sobretudo: **CRUD no se
 
 ---
 
-## 5. Próxima sprint — Mensageria com **Google Cloud Pub/Sub**
+## 9. Próxima sprint — Mensageria com **Google Cloud Pub/Sub**
 
 **Ideia (linguagem simples):** depois de cada **`POST /v1/qr/analyze` com sucesso**, o servidor **não precisa de fazer tudo na mesma hora**. Ele **responde já** ao telemóvel e, em paralelo, **manda uma mensagem pequena** para uma **fila na Google** (Pub/Sub). Outro programa (**subscritor**) pode: gravar estatísticas, mandar para BigQuery, ou só **registar no log** — o importante para a cadeira é mostrar **produtor → fila → consumidor**.
 
@@ -82,7 +204,7 @@ Para o checklist literal da 2ª sprint, **falta fechar** sobretudo: **CRUD no se
 
 ---
 
-## 6. Frase de encerramento sugerida na apresentação
+## 10. Frase de encerramento sugerida na apresentação
 
 > “Entregámos o fluxo completo scan → API → veredito, com lista dinâmica no Firestore e app integrado. Para a rubrica de CRUD e BD servidor, vamos expor um recurso simples com dados de teste na próxima iteração. A mensageria com **Pub/Sub** fica como evolução clara: eventos de análise assíncronos sem bloquear o utilizador.”
 

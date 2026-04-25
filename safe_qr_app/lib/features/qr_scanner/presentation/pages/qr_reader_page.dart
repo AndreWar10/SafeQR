@@ -164,25 +164,27 @@ class _QrReaderPageState extends State<QrReaderPage> {
             subtitle: remote ? AppStrings.readerHelpRemote : AppStrings.readerHelpLocal,
           ),
           const SizedBox(height: 12),
-          DecoratedBox(
-            decoration: BoxDecoration(
-              color: c.primaryContainer.withValues(alpha: 0.4),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: c.outlineVariant.withValues(alpha: 0.35)),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              child: Text(
-                remote ? AppStrings.readerModeRemoteBanner : AppStrings.readerModeLocalBanner,
-                style: GoogleFonts.plusJakartaSans(
-                  color: t.muted,
-                  fontSize: 12,
-                  height: 1.3,
+          if (!remote) ...<Widget>[
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: c.primaryContainer.withValues(alpha: 0.4),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: c.outlineVariant.withValues(alpha: 0.35)),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                child: Text(
+                  AppStrings.readerModeLocalBanner,
+                  style: GoogleFonts.plusJakartaSans(
+                    color: t.muted,
+                    fontSize: 12,
+                    height: 1.3,
+                  ),
                 ),
               ),
             ),
-          ),
-          const SizedBox(height: 12),
+            const SizedBox(height: 12),
+          ],
           Expanded(
             child: _ScannerFrame(
               child: ClipRRect(

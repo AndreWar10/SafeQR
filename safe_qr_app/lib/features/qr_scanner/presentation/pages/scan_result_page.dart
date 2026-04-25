@@ -173,6 +173,7 @@ class ScanResultPage extends StatelessWidget {
       );
       return;
     }
+    // Abre o URL no navegador (ou app externo), fora do Safe QR — não usa WebView embutido.
     await launchUrl(u, mode: LaunchMode.externalApplication);
   }
 }
