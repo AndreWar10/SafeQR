@@ -66,5 +66,16 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>A câmera é usada para escanear QR Codes de forma local antes da análise de segurança.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Salvamos a imagem do QR na sua galeria quando você toca em «Salvar no dispositivo».</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Permitir salvar a imagem do QR na galeria ao salvar no dispositivo ou ao compartilhar.</string>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>https</string>
+		<string>http</string>
+	</array>
 </dict>
 </plist>
