@@ -70,8 +70,14 @@ describe('POST /v1/qr/analyze', () => {
   });
 
   it('413 quando payload excede limite', async () => {
-    const app = await createTestApp();
-    const env = loadEnv({ ...process.env, NODE_ENV: 'test', LOG_LEVEL: 'silent', MAX_RAW_CONTENT_BYTES: '10' });
+    const env = loadEnv({
+      ...process.env,
+      NODE_ENV: 'test',
+      LOG_LEVEL: 'fatal',
+      MAX_RAW_CONTENT_BYTES: '10',
+      GOOGLE_APPLICATION_CREDENTIALS: '',
+      FIREBASE_SERVICE_ACCOUNT_JSON: '',
+    });
     const { createLogger } = await import('../src/lib/logger.js');
     const { buildApp } = await import('../src/app.js');
     const tiny = await buildApp(env, createLogger(env));

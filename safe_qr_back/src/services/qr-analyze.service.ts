@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto';
 
 import { QrVerdict, type QrVerdictName } from '../models/qr-verdict.js';
 import type { QrAnalyzeResultModel, QrParsedSummary } from '../models/analyze-result.model.js';
+import { normalizeHostname } from './suspicious-hosts-match.js';
+import { NullSuspiciousHostsPort, type SuspiciousHostsPort } from './suspicious-hosts-port.js';
 
 const URL_SHORTENER_HOSTS = new Set<string>([
   'bit.ly',
@@ -18,9 +20,12 @@ const URL_SHORTENER_HOSTS = new Set<string>([
 /**
  * Heurística S1 — espelha o motor local do app Flutter (`QrLocalHeuristicEngine`)
  * para resposta estável entre modos local/remoto.
+ * Opcionalmente cruza hostname com lista Firestore `suspicious_hosts/clones`.
  */
 export class QrAnalyzeService {
-  evaluate(raw: string): QrAnalyzeResultModel {
+  constructor(private readonly suspiciousHosts: SuspiciousHostsPort = new NullSuspiciousHostsPort()) {}
+
+  async evaluateAsync(raw: string): Promise<QrAnalyzeResultModel> {
     const content = raw.trim();
     if (content.length === 0) {
       return this.result({
@@ -56,9 +61,31 @@ export class QrAnalyzeService {
       uri = null;
     }
 
-    if (uri !== null && uri.protocol !== ':' && uri.hostname !== '') {
+    if (uri !== null && uri.protocol !== ':') {
       const scheme = uri.protocol.replace(/:$/, '').toLowerCase();
       if (scheme === 'http' || scheme === 'https') {
+        if (!uri.hostname) {
+          return this.result({
+            verdict: QrVerdict.unknown,
+            safe: false,
+            reasons: ['Endereço web incompleto ou inválido.'],
+            parsed: { type: 'url', scheme },
+          });
+        }
+        const norm = normalizeHostname(uri.hostname);
+        if (await this.suspiciousHosts.isListedHostname(norm)) {
+          const hostRaw = uri.hostname;
+          const s = uri.protocol.replace(/:$/, '');
+          return this.result({
+            verdict: QrVerdict.unsafe,
+            safe: false,
+            reasons: [
+              'Domínio consta na lista de alertas (possível clone / phishing).',
+              'Lista gerida no Firestore (`suspicious_hosts/clones`, campo `urls`).',
+            ],
+            parsed: { type: 'url', scheme: s, host: hostRaw },
+          });
+        }
         return this.httpLike(uri);
       }
       if (['javascript', 'data', 'vbscript', 'file', 'jscript'].includes(scheme)) {

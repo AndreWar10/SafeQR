@@ -4,7 +4,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 
 import type { Env } from '../config/env.js';
 import { qrAnalyzeBodySchema } from '../schemas/qr-analyze.schema.js';
-import { QrAnalyzeService } from '../services/qr-analyze.service.js';
+import type { QrAnalyzeService } from '../services/qr-analyze.service.js';
 import { payloadTooLarge, validationError } from '../views/error-response.view.js';
 import { toQrAnalyzeResponseJson } from '../views/qr-analyze-response.view.js';
 
@@ -50,7 +50,7 @@ export class QrAnalyzeController {
       'Análise de QR solicitada',
     );
 
-    const model = this.deps.service.evaluate(rawContent);
+    const model = await this.deps.service.evaluateAsync(rawContent);
     return reply.send(toQrAnalyzeResponseJson(model));
   };
 }

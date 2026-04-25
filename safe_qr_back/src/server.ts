@@ -1,3 +1,5 @@
+import 'dotenv/config';
+
 import { loadEnv } from './config/env.js';
 import { createLogger } from './lib/logger.js';
 import { buildApp } from './app.js';

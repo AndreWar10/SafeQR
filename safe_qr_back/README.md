@@ -14,7 +14,9 @@ Backend **Node.js (TypeScript)** do projeto Safe QR, alinhado ao **Sprint 1** em
 | **Schemas** | `src/schemas/` | Contratos de entrada (Zod). |
 | **Config / Lib** | `src/config/`, `src/lib/` | Variáveis de ambiente tipadas e fábrica de logger. |
 
-Persistência e filas ficam **fora do escopo S1** (interfaces futuras podem surgir em `repositories/` sem acoplar o controller).
+### Lista de clones (Firestore)
+
+Com **`GOOGLE_APPLICATION_CREDENTIALS`** (ficheiro JSON da conta de serviço) ou **`FIREBASE_SERVICE_ACCOUNT_JSON`** (JSON inline), a API lê o documento **`suspicious_hosts/clones`**, campo **`urls`** (array de URLs ou hosts). Se o hostname do QR coincidir com uma entrada (ou for subdomínio dela), o veredito passa a **`unsafe`**. Sem credenciais, esse passo é omitido (heurística S1 apenas). Ver `.env.example` e `FIRESTORE_SUSPICIOUS_CACHE_MS`.
 
 ## Requisitos
 

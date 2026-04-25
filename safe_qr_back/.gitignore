@@ -3,6 +3,10 @@ dist/
 .env
 .env.*
 !.env.example
+*-firebase-adminsdk-*.json
+service-account*.json
+# Download típico da consola (ex.: safe-qr-app-xxxxx.json)
+safe-qr-app-*.json
 coverage/
 *.log
 .DS_Store
