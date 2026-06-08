@@ -5,7 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/theme/app_color_tokens.dart';
-import '../../../shell/presentation/pages/main_shell_page.dart';
+import '../../../../app/app_routes.dart';
 
 class SplashPage extends StatefulWidget {
   const SplashPage({super.key});
@@ -24,9 +24,7 @@ class _SplashPageState extends State<SplashPage> {
       if (!mounted) {
         return;
       }
-      Navigator.of(context).pushReplacement<dynamic, dynamic>(
-        MaterialPageRoute<dynamic>(builder: (_) => const MainShellPage()),
-      );
+      Navigator.of(context).pushReplacementNamed(AppRoutes.shell);
     });
   }
 

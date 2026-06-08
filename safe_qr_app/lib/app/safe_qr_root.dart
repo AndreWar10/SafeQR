@@ -9,7 +9,7 @@ import 'di/dependency_injection.dart';
 import '../features/qr_generator/presentation/view_models/qr_generator_view_model.dart';
 import '../features/qr_history/presentation/view_models/qr_history_view_model.dart';
 import '../features/qr_scanner/presentation/view_models/qr_reader_view_model.dart';
-import '../features/splash/presentation/pages/splash_page.dart';
+import 'app_routes.dart';
 
 class SafeQrRoot extends StatelessWidget {
   const SafeQrRoot({super.key});
@@ -42,7 +42,9 @@ class _ThemedApp extends StatelessWidget {
           theme: AppTheme.light(),
           darkTheme: AppTheme.dark(),
           themeMode: theme.mode,
-          home: const SplashPage(),
+          initialRoute: AppRoutes.splash,
+          routes: AppRoutes.routes,
+          onGenerateRoute: AppRoutes.routeGenerator,
         );
       },
     );

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
+import '../../../../app/app_routes.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/theme/app_color_tokens.dart';
 import '../../domain/qr_generation_type.dart';
@@ -11,7 +12,6 @@ import '../../../../shared/presentation/widgets/app_hero_header.dart';
 import '../../../../shared/presentation/widgets/app_rounded_action_button.dart';
 import '../view_models/qr_generator_view_model.dart';
 import '../../../../shared/presentation/widgets/safe_qr_loading_overlay.dart';
-import 'qr_generator_result_page.dart';
 
 class QrGeneratorPage extends StatefulWidget {
   const QrGeneratorPage({super.key});
@@ -106,10 +106,9 @@ class _QrGeneratorPageState extends State<QrGeneratorPage> {
       if (!mounted) {
         return;
       }
-      await Navigator.of(context).push<void>(
-        MaterialPageRoute<void>(
-          builder: (BuildContext context) => QrGeneratorResultPage(payload: payload),
-        ),
+      await Navigator.of(context).pushNamed(
+        AppRoutes.generatorResult,
+        arguments: payload,
       );
       if (!mounted) {
         return;

@@ -5,16 +5,15 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:provider/provider.dart';
 
+import '../../../../app/app_routes.dart';
 import '../../../../core/config/analyze_mode.dart';
 import '../../../../core/config/app_config.dart';
 import '../../../../core/logging/app_debug_log.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/theme/app_color_tokens.dart';
 import '../../../../shared/presentation/widgets/app_hero_header.dart';
-import '../../../../shared/presentation/widgets/safe_qr_loading_overlay.dart';
 import '../../domain/entities/qr_security_verdict.dart';
 import '../view_models/qr_reader_view_model.dart';
-import 'scan_result_page.dart';
 
 /// Tempo mínimo do overlay só no modo **local** (heurística instantânea). Em **remote**, o loading dura o tempo real da API.
 const Duration _kReaderAnalysisOverlayMinLocal = Duration(seconds: 3);
@@ -71,34 +70,7 @@ class _QrReaderPageState extends State<QrReaderPage> {
       _scanBusy = true;
     });
 
-    rootNav.push<void>(
-      PageRouteBuilder<void>(
-        opaque: true,
-        barrierDismissible: false,
-        settings: const RouteSettings(name: 'QrReaderAnalyzing'),
-        transitionDuration: Duration.zero,
-        reverseTransitionDuration: const Duration(milliseconds: 220),
-        pageBuilder: (
-          BuildContext routeContext,
-          Animation<double> animation, // ignore: unused_parameter
-          Animation<double> secondaryAnimation, // ignore: unused_parameter
-        ) {
-          return PopScope(
-            canPop: false,
-            child: Scaffold(
-              backgroundColor: const Color(0xE6000000),
-              body: const Center(
-                child: SafeQrLoadingOverlay(
-                  title: AppStrings.readerLoadingTitle,
-                  subtitle: AppStrings.readerLoadingSubtitle,
-                  leadingIcon: Icons.qr_code_scanner_rounded,
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
+    rootNav.pushNamed(AppRoutes.scanAnalyzing);
     await WidgetsBinding.instance.endOfFrame;
 
     try {
@@ -133,10 +105,9 @@ class _QrReaderPageState extends State<QrReaderPage> {
         _cooldownUntil = DateTime.now().add(const Duration(seconds: 2));
         return;
       }
-      await Navigator.of(context).push<void>(
-        MaterialPageRoute<void>(
-          builder: (BuildContext _) => ScanResultPage(result: result, raw: code),
-        ),
+      await Navigator.of(context).pushNamed(
+        AppRoutes.scanResult,
+        arguments: ScanResultRouteArgs(result: result, raw: code),
       );
       _cooldownUntil = DateTime.now().add(const Duration(seconds: 2));
     } finally {

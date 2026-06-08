@@ -1,5 +1,7 @@
 # Dados, privacidade (mobile) — alinhado ao RNF-02 (Sprint 1)
 
+> Documentação expandida: [12-seguranca-privacidade.md](./12-seguranca-privacidade.md)
+
 ## O que o app envia
 
 - **Modo `ANALYZE_MODE=remote`:** o conteúdo bruto lido do QR (string) é enviado no corpo de `POST /v1/qr/analyze`, com metadados mínimos de cliente (`appVersion`, `plataforma`) — conforme o contrato do planeamento.
