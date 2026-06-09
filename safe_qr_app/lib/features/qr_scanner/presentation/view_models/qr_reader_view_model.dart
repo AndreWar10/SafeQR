@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../../core/identity/user_identity_service.dart';
 import '../../../../core/config/app_build_info.dart';
 import '../../../../core/logging/app_debug_log.dart';
 import '../../../../core/constants/app_strings.dart';
@@ -14,13 +15,16 @@ final class QrReaderViewModel extends ChangeNotifier {
   QrReaderViewModel({
     required AnalyzeQrCode analyze,
     required AddHistoryItem addToHistory,
+    required UserIdentityService userIdentity,
     Uuid? uuid,
   })  : _analyze = analyze,
         _addToHistory = addToHistory,
+        _userIdentity = userIdentity,
         _uuid = uuid ?? const Uuid();
 
   final AnalyzeQrCode _analyze;
   final AddHistoryItem _addToHistory;
+  final UserIdentityService _userIdentity;
   final Uuid _uuid;
 
   bool _inFlight = false;
@@ -74,10 +78,12 @@ final class QrReaderViewModel extends ChangeNotifier {
     notifyListeners();
     AppDebugLog.reader('analyzeDecoded início len=${c.length} platform=${_mapPlatform()}');
     try {
+      final String idUser = await _userIdentity.getOrCreateIdUser();
       final QrAnalysisResult r = await _analyze(
         _clip(c),
         appVersion: AppBuildInfo.versionLabel,
         platform: _mapPlatform(),
+        idUser: idUser,
       );
       final HistoryItem item = HistoryItem(
         id: _uuid.v4(),

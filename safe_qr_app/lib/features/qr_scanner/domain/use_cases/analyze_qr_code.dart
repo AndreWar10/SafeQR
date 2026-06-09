@@ -9,7 +9,8 @@ final class AnalyzeQrCode {
     String raw, {
     String? appVersion,
     String? platform,
+    String? idUser,
   }) {
-    return _repository.analyze(raw, appVersion: appVersion, platform: platform);
+    return _repository.analyze(raw, appVersion: appVersion, platform: platform, idUser: idUser);
   }
 }

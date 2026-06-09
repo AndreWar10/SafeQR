@@ -10,6 +10,7 @@ import '../../core/config/analyze_mode.dart';
 import '../../core/config/app_config.dart';
 import '../../core/constants/app_endpoints.dart';
 import '../../core/logging/app_debug_log.dart';
+import '../../core/identity/user_identity_service.dart';
 import '../../core/database/app_database_bootstrapper.dart';
 import '../../core/network/app_network.dart';
 import '../../core/theme/app_theme_mode_controller.dart';
@@ -87,10 +88,12 @@ Future<void> configureDependencies({
       },
     )
     ..registerLazySingleton<AnalyzeQrCode>(() => AnalyzeQrCode(sl()))
+    ..registerLazySingleton<UserIdentityService>(() => UserIdentityService(sl()))
     ..registerLazySingleton<QrReaderViewModel>(
       () => QrReaderViewModel(
         analyze: sl(),
         addToHistory: sl(),
+        userIdentity: sl(),
       ),
     )
     ..registerLazySingleton<QrGeneratorViewModel>(

@@ -23,7 +23,7 @@ export async function buildApp(env: Env, logger: Logger): Promise<FastifyInstanc
     allowedHeaders: ['Content-Type', 'x-request-id'],
   });
 
-  registerV1Routes(app, env);
+  registerV1Routes(app, env, logger);
 
   app.setErrorHandler((err, req, reply) => {
     req.log.error({ err }, 'Unhandled error');

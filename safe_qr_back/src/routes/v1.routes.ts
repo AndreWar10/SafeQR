@@ -3,6 +3,8 @@ import type { FastifyInstance } from 'fastify';
 import type { Env } from '../config/env.js';
 import { HealthController } from '../controllers/health.controller.js';
 import { QrAnalyzeController } from '../controllers/qr-analyze.controller.js';
+import type { Logger } from '../lib/logger.js';
+import { createAnalyzeEventPublisher } from '../services/pubsub-analyze-event-publisher.js';
 import { QrAnalyzeService } from '../services/qr-analyze.service.js';
 import { FirestoreSuspiciousHostsPort } from '../services/suspicious-hosts-firestore.js';
 import { NullSuspiciousHostsPort } from '../services/suspicious-hosts-port.js';
@@ -16,10 +18,15 @@ function createSuspiciousHostsPort(env: Env) {
   return new FirestoreSuspiciousHostsPort({ cacheTtlMs: env.FIRESTORE_SUSPICIOUS_CACHE_MS });
 }
 
-export function registerV1Routes(app: FastifyInstance, env: Env): void {
+export function registerV1Routes(app: FastifyInstance, env: Env, logger: Logger): void {
   const health = new HealthController();
   const analyzeService = new QrAnalyzeService(createSuspiciousHostsPort(env));
-  const qrAnalyze = new QrAnalyzeController({ env, service: analyzeService });
+  const eventPublisher = createAnalyzeEventPublisher(env, logger);
+  const qrAnalyze = new QrAnalyzeController({
+    env,
+    service: analyzeService,
+    eventPublisher,
+  });
 
   app.get('/v1/health', health.getV1);
   app.get('/health', health.getV1);

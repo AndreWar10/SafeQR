@@ -1,0 +1,29 @@
+{
+  "name": "safe-qr-messaging",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Safe QR — consumidor Pub/Sub (Tópico 1: qr.analyzed)",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "consume:events": "tsx scripts/consume-analyze-events.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@google-cloud/pubsub": "^4.11.0",
+    "firebase-admin": "^13.8.0",
+    "dotenv": "^16.6.1",
+    "pino": "^9.6.0",
+    "pino-pretty": "^13.0.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.4"
+  }
+}

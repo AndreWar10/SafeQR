@@ -17,6 +17,7 @@ final class RemoteQrAnalyzeRepository implements QrAnalyzeRepository {
     String rawContent, {
     String? appVersion,
     String? platform,
+    String? idUser,
   }) async {
     AppDebugLog.reader(
       'RemoteQrAnalyzeRepository.analyze rawLen=${rawContent.length} path=${AppEndpoints.qrAnalyze}',
@@ -28,6 +29,7 @@ final class RemoteQrAnalyzeRepository implements QrAnalyzeRepository {
         'client': <String, dynamic>{
           'appVersion': appVersion ?? AppBuildInfo.versionLabel,
           'platform': platform ?? 'android',
+          if (idUser != null) 'idUser': idUser,
         },
       },
     );

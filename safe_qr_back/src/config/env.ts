@@ -5,12 +5,21 @@ const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3000),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
   MAX_RAW_CONTENT_BYTES: z.coerce.number().int().positive().max(1024 * 1024).default(8192),
-  /** Caminho absoluto ou relativo ao JSON da conta de serviço (Admin SDK). */
+  /** Caminho absoluto ou relativo ao JSON da conta de serviço (Admin SDK / Firestore). */
   GOOGLE_APPLICATION_CREDENTIALS: z.string().optional(),
   /** Alternativa ao ficheiro: JSON inline (ex.: CI / PaaS). */
   FIREBASE_SERVICE_ACCOUNT_JSON: z.string().optional(),
   /** TTL do cache em memória da lista `suspicious_hosts/clones`. */
   FIRESTORE_SUSPICIOUS_CACHE_MS: z.coerce.number().int().positive().max(3_600_000).default(60_000),
+  /** ID do projeto GCP (Pub/Sub). */
+  GCP_PROJECT_ID: z.string().optional(),
+  PUBSUB_ENABLED: z
+    .enum(['true', 'false', '1', '0'])
+    .default('false')
+    .transform((v) => v === 'true' || v === '1'),
+  PUBSUB_TOPIC: z.string().default('safe-qr-analyze-events'),
+  /** Credencial dedicada ao publisher Pub/Sub (separada do Firestore). */
+  PUBSUB_GOOGLE_APPLICATION_CREDENTIALS: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

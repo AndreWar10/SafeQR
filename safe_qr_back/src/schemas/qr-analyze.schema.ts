@@ -7,6 +7,7 @@ export const qrAnalyzeBodySchema = z.object({
     .object({
       appVersion: z.string().max(64).optional(),
       platform: z.string().max(32).optional(),
+      idUser: z.string().max(128).optional(),
     })
     .optional(),
 });

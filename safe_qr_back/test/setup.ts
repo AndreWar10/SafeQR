@@ -9,6 +9,8 @@ export async function createTestApp() {
     LOG_LEVEL: 'fatal',
     GOOGLE_APPLICATION_CREDENTIALS: '',
     FIREBASE_SERVICE_ACCOUNT_JSON: '',
+    PUBSUB_ENABLED: 'false',
+    GCP_PROJECT_ID: '',
   });
   const logger = createLogger(env);
   return buildApp(env, logger);
