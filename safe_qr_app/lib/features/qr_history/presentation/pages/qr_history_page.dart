@@ -3,7 +3,10 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../../../../core/config/analyze_mode.dart';
+import '../../../../core/config/app_config.dart';
 import '../../../../core/constants/app_strings.dart';
+import '../../../../app/di/dependency_injection.dart';
 import '../../../../core/theme/app_color_tokens.dart';
 import '../../../../shared/presentation/widgets/app_hero_header.dart';
 import '../../domain/entities/history_item.dart';
@@ -17,6 +20,8 @@ class QrHistoryPage extends StatefulWidget {
 }
 
 class _QrHistoryPageState extends State<QrHistoryPage> {
+  final Set<String> _selectedIds = <String>{};
+
   @override
   void initState() {
     super.initState();
@@ -28,24 +33,41 @@ class _QrHistoryPageState extends State<QrHistoryPage> {
     });
   }
 
+  void _toggleSelection(String id) {
+    setState(() {
+      if (_selectedIds.contains(id)) {
+        _selectedIds.remove(id);
+      } else {
+        _selectedIds.add(id);
+      }
+    });
+  }
+
+  void _clearSelection() {
+    if (_selectedIds.isEmpty) {
+      return;
+    }
+    setState(_selectedIds.clear);
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = context.safeColors;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-      child: Column(
-        children: <Widget>[
-          AppHeroHeader(
-            title: AppStrings.historyTitle,
-            subtitle: 'Tudo fica no dispositivo. Apaga o que já não for útil.',
-            trailing: TextButton(
-              onPressed: () => _onClearAll(context),
-              child: Text(AppStrings.historyClear, style: GoogleFonts.plusJakartaSans(color: t.danger, fontWeight: FontWeight.w800)),
-            ),
-          ),
-          const SizedBox(height: 10),
-          Expanded(
-            child: Consumer<QrHistoryViewModel>(
+    final bool remoteHistory = sl<AppConfig>().analyzeMode == AnalyzeMode.remote;
+    return Column(
+      children: <Widget>[
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+            child: Column(
+              children: <Widget>[
+                AppHeroHeader(
+                  title: AppStrings.historyTitle,
+                  subtitle: remoteHistory ? AppStrings.historySubtitleRemote : AppStrings.historySubtitleLocal,
+                ),
+                const SizedBox(height: 10),
+                Expanded(
+                  child: Consumer<QrHistoryViewModel>(
               builder: (BuildContext context, QrHistoryViewModel v, _) {
                 if (v.isLoading) {
                   return const Center(child: CircularProgressIndicator());
@@ -63,47 +85,159 @@ class _QrHistoryPageState extends State<QrHistoryPage> {
                   );
                 }
                 return RefreshIndicator(
-                  onRefresh: v.load,
+                  onRefresh: () async {
+                    await v.load();
+                    if (mounted) {
+                      _clearSelection();
+                    }
+                  },
                   child: ListView.separated(
                     itemCount: v.items.length,
                     separatorBuilder: (BuildContext context, int i) => const SizedBox(height: 8),
                     itemBuilder: (BuildContext context, int i) {
-                      return _HistoryCard(item: v.items[i], onDelete: (String id) => v.remove(id));
+                      final HistoryItem item = v.items[i];
+                      final bool selected = _selectedIds.contains(item.id);
+                      return _HistoryCard(
+                        item: item,
+                        selected: selected,
+                        selectionActive: _selectedIds.isNotEmpty,
+                        onTap: () => _showContent(context, item, Theme.of(context).colorScheme),
+                        onLongPress: () => _toggleSelection(item.id),
+                        onDelete: (String id) async {
+                          await v.remove(id);
+                          if (mounted) {
+                            setState(() => _selectedIds.remove(id));
+                          }
+                        },
+                      );
                     },
                   ),
                 );
               },
             ),
+                ),
+              ],
+            ),
           ),
-        ],
-      ),
+        ),
+        if (_selectedIds.isNotEmpty)
+          _SelectionBottomBar(
+            count: _selectedIds.length,
+            bottomInset: MediaQuery.paddingOf(context).bottom,
+            onDelete: () => _onDeleteSelected(context),
+            onClearSelection: _clearSelection,
+          ),
+      ],
     );
   }
 
-  Future<void> _onClearAll(BuildContext context) async {
+  Future<void> _onDeleteSelected(BuildContext context) async {
+    final int count = _selectedIds.length;
     final ok = await showDialog<bool>(
       context: context,
       builder: (BuildContext c) {
         return AlertDialog(
-          title: const Text('Limpar tudo?'),
-          content: const Text('Esta ação apaga o histórico local deste aparelho.'),
+          title: const Text(AppStrings.historyDeleteSelectedConfirmTitle),
+          content: Text(
+            count == 1
+                ? 'Este item será apagado permanentemente.'
+                : 'Os $count itens selecionados serão apagados permanentemente.',
+          ),
           actions: <Widget>[
             TextButton(onPressed: () => Navigator.pop(c, false), child: const Text(AppStrings.cancel)),
-            FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Limpar')),
+            FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text(AppStrings.historyDelete)),
           ],
         );
       },
     );
-    if (ok == true && context.mounted) {
-      await context.read<QrHistoryViewModel>().clear();
+    if (ok != true || !context.mounted) {
+      return;
+    }
+    final QrHistoryViewModel v = context.read<QrHistoryViewModel>();
+    final List<String> ids = _selectedIds.toList(growable: false);
+    await v.removeMany(ids);
+    if (context.mounted) {
+      setState(_selectedIds.clear);
     }
   }
 }
 
+class _SelectionBottomBar extends StatelessWidget {
+  const _SelectionBottomBar({
+    required this.count,
+    required this.bottomInset,
+    required this.onDelete,
+    required this.onClearSelection,
+  });
+
+  final int count;
+  final double bottomInset;
+  final VoidCallback onDelete;
+  final VoidCallback onClearSelection;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.safeColors;
+    final c = Theme.of(context).colorScheme;
+    return Material(
+      color: c.surfaceContainerHighest,
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+      elevation: 8,
+      shadowColor: c.shadow.withValues(alpha: 0.2),
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(16, 12, 16, 12 + bottomInset),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: Text(
+                    '$count selecionado${count == 1 ? '' : 's'}',
+                    style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, fontSize: 14),
+                  ),
+                ),
+                TextButton(onPressed: onClearSelection, child: const Text(AppStrings.historyClearSelection)),
+              ],
+            ),
+            const SizedBox(height: 8),
+            FilledButton.icon(
+              onPressed: onDelete,
+              style: FilledButton.styleFrom(
+                backgroundColor: t.danger.withValues(alpha: 0.12),
+                foregroundColor: t.danger,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+              icon: const Icon(Icons.delete_outline),
+              label: Text(
+                AppStrings.historyDeleteSelected,
+                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _HistoryCard extends StatelessWidget {
-  const _HistoryCard({required this.item, required this.onDelete});
+  const _HistoryCard({
+    required this.item,
+    required this.selected,
+    required this.selectionActive,
+    required this.onTap,
+    required this.onLongPress,
+    required this.onDelete,
+  });
+
   final HistoryItem item;
-  final void Function(String id) onDelete;
+  final bool selected;
+  final bool selectionActive;
+  final VoidCallback onTap;
+  final VoidCallback onLongPress;
+  final Future<void> Function(String id) onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -111,6 +245,89 @@ class _HistoryCard extends StatelessWidget {
     final c = Theme.of(context).colorScheme;
     final df = DateFormat('dd/MM/yyyy · HH:mm');
     final title = item.type == HistoryItemType.scan ? AppStrings.scanType : AppStrings.genType;
+
+    final Widget card = Material(
+      color: selected ? t.brand.withValues(alpha: 0.08) : c.surfaceContainerHighest,
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: onTap,
+        onLongPress: onLongPress,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              if (selectionActive)
+                Padding(
+                  padding: const EdgeInsets.only(right: 10, top: 2),
+                  child: Icon(
+                    selected ? Icons.check_circle : Icons.circle_outlined,
+                    color: selected ? t.brand : t.muted,
+                    size: 22,
+                  ),
+                ),
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: (item.type == HistoryItemType.scan ? t.brand : t.muted).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: selected ? t.brand.withValues(alpha: 0.5) : c.outlineVariant.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(10),
+                  child: Icon(
+                    item.type == HistoryItemType.scan ? Icons.qr_code_scanner : Icons.qr_code_2,
+                    color: item.type == HistoryItemType.scan ? t.brand : t.muted,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Row(
+                      children: <Widget>[
+                        Text(
+                          title,
+                          style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w800, color: t.muted),
+                        ),
+                        const Spacer(),
+                        Text(
+                          df.format(item.createdAt),
+                          style: GoogleFonts.jetBrainsMono(fontSize: 11, color: t.muted),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      item.content,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.jetBrainsMono(textStyle: Theme.of(context).textTheme.bodySmall),
+                    ),
+                    if (item.type == HistoryItemType.scan) ...<Widget>[
+                      const SizedBox(height: 8),
+                      Text(
+                        'Veredicto: ${item.verdict ?? "—"} · Abrir: ${item.safeToOpen == null ? "—" : (item.safeToOpen! ? "sim" : "não")}',
+                        style: GoogleFonts.plusJakartaSans(color: t.muted, fontSize: 12),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (selectionActive) {
+      return card;
+    }
+
     return Dismissible(
       key: ValueKey<String>(item.id),
       direction: DismissDirection.endToStart,
@@ -128,73 +345,7 @@ class _HistoryCard extends StatelessWidget {
         ),
       ),
       onDismissed: (_) => onDelete(item.id),
-      child: Material(
-        color: c.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(18),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(18),
-          onTap: () {
-            _showContent(context, item, c);
-          },
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: (item.type == HistoryItemType.scan ? t.brand : t.muted).withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: c.outlineVariant.withValues(alpha: 0.3)),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(10),
-                    child: Icon(
-                      item.type == HistoryItemType.scan ? Icons.qr_code_scanner : Icons.qr_code_2,
-                      color: item.type == HistoryItemType.scan ? t.brand : t.muted,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Row(
-                        children: <Widget>[
-                          Text(
-                            title,
-                            style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w800, color: t.muted),
-                          ),
-                          const Spacer(),
-                          Text(
-                            df.format(item.createdAt),
-                            style: GoogleFonts.jetBrainsMono(fontSize: 11, color: t.muted),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        item.content,
-                        maxLines: 3,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.jetBrainsMono(textStyle: Theme.of(context).textTheme.bodySmall),
-                      ),
-                      if (item.type == HistoryItemType.scan) ...<Widget>[
-                        const SizedBox(height: 8),
-                        Text(
-                          'Veredicto: ${item.verdict ?? "—"} · Abrir: ${item.safeToOpen == null ? "—" : (item.safeToOpen! ? "sim" : "não")}',
-                          style: GoogleFonts.plusJakartaSans(color: t.muted, fontSize: 12),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+      child: card,
     );
   }
 }

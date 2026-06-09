@@ -10,10 +10,10 @@ Documento de planejamento baseado no estado atual do código e nos docs de sprin
 | Análise heurística QR | ✅ Completo (S1) |
 | Lista Firestore clones | ✅ Completo |
 | Logs com privacidade | ✅ Completo |
-| Testes automatizados | ✅ 12 testes |
-| CRUD server-side | ❌ Não iniciado |
-| Autenticação | ❌ Não iniciado |
-| Pub/Sub mensageria | ❌ Planejado |
+| Testes automatizados | ✅ 31+ testes |
+| CRUD histórico `/v1/history` | ✅ Firestore |
+| Autenticação Firebase JWT | ✅ analyze + history |
+| Pub/Sub mensageria | ✅ Produtor + fan-out consumidores |
 | Deploy nuvem documentado | ❌ Parcial |
 
 ## Gaps vs. checklist acadêmico (Sprint 2)
@@ -49,25 +49,28 @@ Referência: [`../../docs/SPRINT-2-STATUS-E-PROXIMA-ENTREGA.md`](../../docs/SPRI
    - CORS restrito ao domínio do app
    - `@fastify/rate-limit` básico
 
-### Sprint 3 — Mensageria (Pub/Sub)
+### Sprint 3 — Mensageria (Pub/Sub) — **implementado**
 
-**Objetivo:** Eventos assíncronos pós-análise.
+**Objetivo:** Eventos assíncronos pós-análise + histórico na fila.
 
 ```mermaid
 flowchart LR
   API[POST /v1/qr/analyze]
-  API -->|200 imediato| APP[App Flutter]
-  API -->|publish fire-and-forget| PS[Pub/Sub Topic]
-  PS --> SUB[Subscription]
-  SUB --> CON[Consumer / Cloud Function]
-  CON --> BQ[BigQuery / Logs / Stats]
+  API -->|200| APP[App]
+  API -->|publish| PS[Pub/Sub]
+  PS --> H[consume:history]
+  PS --> A[consume:audit]
+  H --> FH[(history)]
+  A --> SE[(scan_events)]
 ```
 
-**Passos técnicos:**
+**Docs:** [13-pubsub-qr-analyzed.md](./13-pubsub-qr-analyzed.md), [safe_qr_messaging/docs/02-FANOUT-HISTORICO-AUDIT.md](../../safe_qr_messaging/docs/02-FANOUT-HISTORICO-AUDIT.md).
 
-1. Ativar Pub/Sub no projeto GCP
-2. Criar tópico `safe-qr-analyze-events`
-3. Adicionar `@google-cloud/pubsub` ao backend
+**Próximo:** `GET /v1/scan-events` (listar auditoria), deploy Cloud Run do consumidor.
+
+<details>
+<summary>Payload original planejado (referência)</summary>
+
 4. Após resposta 200, publicar mensagem:
 
 ```json
@@ -84,6 +87,8 @@ flowchart LR
 5. Consumidor demo: `npm run pubsub:listen` ou Cloud Function push
 
 **Privacidade:** Não incluir `rawContent` na mensagem — usar digest existente.
+
+</details>
 
 ### Sprint 4+ (médio prazo)
 

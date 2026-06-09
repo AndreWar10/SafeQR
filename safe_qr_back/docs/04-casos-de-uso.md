@@ -46,14 +46,19 @@ flowchart LR
 - Modo de análise = `remote` no `.env` do app
 - Conteúdo do QR já decodificado pela câmera
 
+**Pré-condição adicional:** app autenticado no Firebase (`getIdToken()`).
+
 **Fluxo principal:**
 
-1. App envia `POST /v1/qr/analyze` com `rawContent` e metadados opcionais `client`.
-2. API valida o corpo (Zod) e o tamanho em bytes UTF-8.
-3. API registra log estruturado (tamanho + digest, sem texto bruto).
-4. Serviço classifica o conteúdo (heurística + lista Firestore opcional).
-5. API responde `200` com `verdict`, `safeToOpen`, `reasons`, `parsed`.
-6. App exibe resultado ao usuário e grava no histórico SQLite local.
+1. App obtém JWT: `await FirebaseAuth.instance.currentUser!.getIdToken()`.
+2. App envia `POST /v1/qr/analyze` com header `Authorization: Bearer <JWT>`, `rawContent` e metadados opcionais `client`.
+3. API valida o corpo (Zod) e o tamanho em bytes UTF-8.
+4. API valida o Bearer (`verifyIdToken`) e resolve `idUser` = `decoded.uid`.
+5. API registra log estruturado (tamanho + digest + `idUser`, sem texto bruto).
+6. Serviço classifica o conteúdo (heurística + lista Firestore opcional).
+7. API responde `200` com `verdict`, `safeToOpen`, `reasons`, `parsed`.
+8. API publica evento `qr.analyzed` no Pub/Sub (histórico assíncrono na nuvem).
+9. App exibe resultado ao usuário e grava no histórico SQLite local.
 
 **Fluxos alternativos:**
 
@@ -61,8 +66,10 @@ flowchart LR
 |--------|----------|----------|
 | E1 | Corpo JSON inválido ou `rawContent` vazio | `400 VALIDATION_ERROR` |
 | E2 | `rawContent` excede `MAX_RAW_CONTENT_BYTES` | `413 PAYLOAD_TOO_LARGE` |
-| E3 | Erro interno não tratado | `500 INTERNAL_ERROR` |
-| E4 | Firestore indisponível | Análise continua sem lista (fail-open) |
+| E3 | Bearer ausente, JWT inválido ou expirado | `401 UNAUTHORIZED` |
+| E4 | Só `client.idUser` no body, sem Bearer | `401 UNAUTHORIZED` |
+| E5 | Erro interno não tratado | `500 INTERNAL_ERROR` |
+| E6 | Firestore indisponível | Análise continua sem lista (fail-open) |
 
 **Pós-condições:**
 

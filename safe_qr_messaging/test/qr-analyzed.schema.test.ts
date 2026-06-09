@@ -22,9 +22,19 @@ describe('qrAnalyzedEnvelopeSchema', () => {
         parsed: { type: 'url', scheme: 'https', host: 'example.com' },
         client: { platform: 'android', appVersion: '1.0.0' },
         analysisDurationMs: 12,
+        historyItem: {
+          id: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+          type: 'scan',
+          content: 'https://example.com',
+          createdAtMs: 1_700_000_000_000,
+          verdict: 'safe',
+          safeToOpen: true,
+          reasons: ['HTTPS OK'],
+        },
       },
     });
     expect(parsed.data.idUser).toBe('usr_test');
+    expect(parsed.data.historyItem?.content).toBe('https://example.com');
   });
 
   it('rejeita eventId inválido', () => {

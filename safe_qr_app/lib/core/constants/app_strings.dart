@@ -23,6 +23,8 @@ abstract final class AppStrings {
   static const String readerResultNotUrlHint = 'Isto não parece um link HTTP/HTTPS. Use copiar se quiser usar o texto em outro app.';
   static const String readerResultCannotOpen = 'Não foi possível abrir o destino com os apps disponíveis.';
   static const String readerResultNotUrlSnack = 'Este conteúdo não parece um URL. Use copiar.';
+  static const String identityError =
+      'Não foi possível identificar o dispositivo. Verifique a ligação e as definições do Firebase.';
   static const String networkError = 'Falha de rede. Tente de novo em instantes.';
   static const String timeoutError = 'O servidor demorou a responder. Tente de novo.';
   static const String invalidResponse = 'Resposta inválida do servidor.';
@@ -76,6 +78,19 @@ abstract final class AppStrings {
   static const String generatorPreviewTitle = 'Pré-visualização';
   static const String generatorPreviewEmpty = 'Ainda sem QR. Preencha os campos e toque em Gerar QR Code.';
   static const String historyEmpty = 'Ainda não há leituras ou QR gerados.';
+  static const String historySubtitleRemote =
+      'Leituras salvas na sua conta. Apague o que já não for útil.';
+  static const String historySubtitleLocal =
+      'Tudo fica no dispositivo. Apague o que já não for útil.';
+  static const String historyClearConfirmRemote =
+      'Esta ação apaga todo o histórico na nuvem desta conta.';
+  static const String historyClearConfirmLocal =
+      'Esta ação apaga o histórico local deste aparelho.';
+  static const String historyDeleteFailed = 'Não foi possível apagar este item. Tente de novo.';
+  static const String historyClearFailed = 'Não foi possível limpar o histórico. Tente de novo.';
+  static const String historyDeleteSelected = 'Apagar selecionados';
+  static const String historyClearSelection = 'Limpar seleção';
+  static const String historyDeleteSelectedConfirmTitle = 'Apagar selecionados?';
   static const String historyClear = 'Limpar tudo';
   static const String historyDelete = 'Excluir';
   static const String historyTitle = 'Histórico';

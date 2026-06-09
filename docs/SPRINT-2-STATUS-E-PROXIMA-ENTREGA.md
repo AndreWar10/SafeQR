@@ -135,7 +135,8 @@ sequenceDiagram
 safe-qr-mobile/
 ├── docs/                    ← documentação de sprint / arquitetura
 ├── safe_qr_app/             ← Flutter (app Android principal)
-└── safe_qr_back/            ← API Node (Fastify) + testes
+├── safe_qr_back/            ← API Node (Fastify) + testes
+└── safe_qr_messaging/       ← consumidores Pub/Sub (histórico + auditoria)
 ```
 
 O back **não** está num repositório separado neste layout; sobe com `cd safe_qr_back && npm run dev`.
@@ -184,29 +185,24 @@ O back **não** está num repositório separado neste layout; sobe com `cd safe_
 
 ---
 
-## 9. Próxima sprint — Mensageria com **Google Cloud Pub/Sub**
+## 9. Mensageria — **Google Cloud Pub/Sub** (implementado)
 
-**Ideia (linguagem simples):** depois de cada **`POST /v1/qr/analyze` com sucesso**, o servidor **não precisa de fazer tudo na mesma hora**. Ele **responde já** ao telemóvel e, em paralelo, **manda uma mensagem pequena** para uma **fila na Google** (Pub/Sub). Outro programa (**subscritor**) pode: gravar estatísticas, mandar para BigQuery, ou só **registar no log** — o importante para a cadeira é mostrar **produtor → fila → consumidor**.
+**Fluxo:** `POST /v1/qr/analyze` (+ Bearer) → resposta 200 → publish `qr.analyzed` → fan-out:
 
-**Conteúdo sugerido da mensagem (privacidade):**
+| Consumidor | Grava |
+|------------|-------|
+| `npm run consume:history` | `history/{idUser}/items/{id}` — histórico do app |
+| `npm run consume:audit` | `scan_events/{eventId}` — auditoria |
 
-- `requestId`, `timestamp`, `verdict`, `safeToOpen`, **hash** do conteúdo (já existe digest no controller), **opcional** `host` parseado — evitar guardar URL completa se o grupo quiser minimizar dados.
+**Docs:** `safe_qr_messaging/README.md`, `safe_qr_messaging/docs/02-FANOUT-HISTORICO-AUDIT.md`, `safe_qr_back/docs/13-pubsub-qr-analyzed.md`.
 
-**Passos técnicos (resumo):**
-
-1. Na **Google Cloud Console** do mesmo projeto: ativar **Pub/Sub** → criar **tópico** (ex.: `safe-qr-analyze-events`).
-2. Criar **subscrição** (ex.: `safe-qr-analyze-events-sub`) para pull ou push.
-3. Dar à conta de serviço do back a permissão **`Pub/Sub Publisher`** (publicar).
-4. No Node: cliente `@google-cloud/pubsub` → após resposta `200` do analyze, **`topic.publishMessage({ json: { ... } })`** (fire-and-forget com `catch` só a logar).
-5. **Consumidor mínimo para demo:** script `npm run pubsub:listen` que faz pull e imprime, ou **Cloud Function** disparada pela subscrição (push).
-
-**Risco / esforço:** médio (credenciais, billing GCP, primeiro deploy). Para apresentação, basta **tópico + publicação + um consumidor que mostre a mensagem no log**.
+**Pendente GCP (manual):** criar subscription `safe-qr-analyze-events-sub-history` se ainda não existir.
 
 ---
 
 ## 10. Frase de encerramento sugerida na apresentação
 
-> “Entregámos o fluxo completo scan → API → veredito, com lista dinâmica no Firestore e app integrado. Para a rubrica de CRUD e BD servidor, vamos expor um recurso simples com dados de teste na próxima iteração. A mensageria com **Pub/Sub** fica como evolução clara: eventos de análise assíncronos sem bloquear o utilizador.”
+> “Entregámos scan → API → veredito, histórico remoto via **Pub/Sub** (produtor no back, consumidor separado), CRUD de histórico com Firebase Auth, e lista dinâmica de clones no Firestore.”
 
 ---
 

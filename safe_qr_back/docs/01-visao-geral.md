@@ -33,16 +33,15 @@ O backend atua como **camada de análise** entre a leitura do QR e a decisão do
 - Validação de entrada com limites de tamanho
 - Logs estruturados com privacidade (digest SHA-256, sem texto bruto)
 - Integração opcional com **Firestore** para lista de domínios suspeitos (clones)
+- **Autenticação Firebase** (`Bearer` JWT) em `POST /v1/qr/analyze` e CRUD `/v1/history`
+- Histórico na nuvem (Firestore) + evento assíncrono `qr.analyzed` (Pub/Sub)
 - Contrato REST versionado em `/v1`
 - Testes automatizados (Vitest)
 
 ### Fora do escopo (por enquanto)
 
-- CRUD completo de recursos no servidor
-- Autenticação / autorização de usuários
-- Persistência server-side do histórico de scans
+- CRUD completo de outros recursos no servidor
 - Motor avançado (ML, sandbox, head requests, typosquatting)
-- Mensageria assíncrona (Pub/Sub — planejado para próxima sprint)
 - Deploy documentado em nuvem pública
 
 ## Atores e integrações
@@ -59,9 +58,11 @@ flowchart TB
   subgraph gcp[Google Cloud / Firebase]
     FS[(Firestore\nsuspicious_hosts/clones)]
   end
-  APP -->|POST /v1/qr/analyze| API
+  APP -->|POST /v1/qr/analyze + Bearer| API
+  APP -->|CRUD /v1/history + Bearer| API
   POSTMAN -->|GET /v1/health| API
   API -->|leitura opcional| FS
+  API -->|history/{uid}/items| FS
 ```
 
 ## Requisitos atendidos
@@ -73,7 +74,8 @@ flowchart TB
 | RF-B03 | Resposta com veredito, razões e metadados | ✅ |
 | RF-B04 | Validação e erros padronizados (`4xx`) | ✅ |
 | RF-B05 | Log estruturado sem PII desnecessária | ✅ |
-| RF-B06 | Histórico server-side | ❌ (futuro) |
+| RF-B06 | Histórico server-side (`/v1/history` + Pub/Sub) | ✅ |
+| RF-B07 | Auth Firebase em analyze e history | ✅ |
 
 ## Princípios de design
 
@@ -88,7 +90,7 @@ flowchart TB
 | Métrica | Valor |
 |---------|-------|
 | Arquivos TypeScript em `src/` | 16 |
-| Endpoints HTTP | 3 (2 health + 1 analyze) |
-| Testes automatizados | 12 (4 arquivos) |
+| Endpoints HTTP | 7 (2 health + 1 analyze + 4 history) |
+| Testes automatizados | 38 (9 arquivos) |
 | Dependências de produção | 6 |
 | Node.js mínimo | 20 |

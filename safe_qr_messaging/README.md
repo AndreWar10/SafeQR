@@ -1,34 +1,36 @@
 # safe_qr_messaging
 
-Consumidor **Google Cloud Pub/Sub** do projeto **Safe QR**. Recebe eventos de análise de QR Code publicados pela API (`safe_qr_back`), valida o envelope JSON, **persiste em Firestore** (`scan_events`), registra log estruturado e confirma entrega (**ack**).
+Consumidores **Google Cloud Pub/Sub** do projeto **Safe QR** (fan-out). A API publica **uma vez**; dois processos separados gravam **histórico do usuário** e **auditoria** (`scan_events`).
 
 ---
 
 ## Papel no ecossistema
 
 ```mermaid
-flowchart LR
-  APP[safe_qr_app Flutter]
+flowchart TB
+  APP[safe_qr_app]
   API[safe_qr_back]
-  TOPIC[Pub/Sub safe-qr-analyze-events]
-  SUB[Subscription safe-qr-analyze-events-sub]
-  MSG[safe_qr_messaging]
+  TOPIC[safe-qr-analyze-events]
+  SUB_H[sub-history]
+  SUB_A[sub-audit]
+  H[consume:history]
+  A[consume:audit]
+  FH[(history/idUser/items)]
+  FA[(scan_events)]
 
-  APP -->|POST /v1/qr/analyze| API
-  API -->|200 imediato| APP
-  API -->|publish qr.analyzed| TOPIC
-  TOPIC --> SUB
-  SUB --> MSG
-  MSG --> FS[(Firestore scan_events)]
-  MSG --> LOG[Log Pino + ack]
+  APP -->|POST analyze| API
+  API -->|200 verdict| APP
+  API -->|1x publish| TOPIC
+  TOPIC --> SUB_H --> H --> FH
+  TOPIC --> SUB_A --> A --> FA
 ```
 
 | Componente | Responsabilidade |
 |------------|------------------|
-| `safe_qr_app` | Envia `client.idUser` + conteúdo do QR |
-| `safe_qr_back` | Analisa, responde HTTP 200, **publica** evento (fire-and-forget) |
-| **Este repo** | **Consome**, valida, **grava Firestore**, loga, **ack** / **nack** |
-| Google Cloud Pub/Sub | Fila at-least-once entre produtor e consumidor |
+| `safe_qr_app` | Scan → analyze; histórico via `GET /v1/history` |
+| `safe_qr_back` | Responde na hora + publica evento com `historyItem` |
+| **`consume:history`** | Grava `history/{idUser}/items/{id}` |
+| **`consume:audit`** | Grava `scan_events/{eventId}` |
 
 ---
 
@@ -37,10 +39,16 @@ flowchart LR
 | Recurso | Nome |
 |---------|------|
 | Tópico | `safe-qr-analyze-events` |
-| Subscription (Pull) | `safe-qr-analyze-events-sub` |
-| SA consumidor | `safe-qr-pubsub-consumer@safe-qr-app.iam.gserviceaccount.com` |
-| Roles | `roles/pubsub.subscriber` + `roles/datastore.user` (Firestore write) |
-| Coleção Firestore | `scan_events` (doc ID = `eventId`) |
+| Subscription audit | `safe-qr-analyze-events-sub` (existente) |
+| Subscription history | **`safe-qr-analyze-events-sub-history`** (criar no GCP) |
+| Firestore histórico | `history/{idUser}/items/{id}` |
+| Firestore auditoria | `scan_events/{eventId}` |
+
+### Criar subscription de histórico (manual, 1x)
+
+1. [Pub/Sub → Tópicos](https://console.cloud.google.com/cloudpubsub/topic/list) → `safe-qr-analyze-events`
+2. **Criar assinatura** → ID: `safe-qr-analyze-events-sub-history`
+3. Tipo: **Pull**, ack 60s, sem extras (schema/BigQuery desmarcados)
 
 Setup manual detalhado: **[docs/01-PUBSUB-IMPLEMENTACAO.md](./docs/01-PUBSUB-IMPLEMENTACAO.md)**
 
@@ -103,17 +111,25 @@ Reinicie o consumidor após alterar a role (pode levar ~1 min para propagar).
 
 | Comando | Descrição |
 |---------|-----------|
-| `npm run consume:events` | Inicia consumidor pull (processo contínuo) |
-| `npm test` | Testes unitários (schema Zod) |
+| `npm run consume:history` | Consumidor histórico (`sub-history`) |
+| `npm run consume:audit` | Consumidor auditoria (`scan_events`) |
+| `npm run consume:events` | Alias de `consume:audit` |
+| `npm test` | Testes unitários |
 
 ---
 
 ## Teste ponta a ponta
 
-**Terminal 1 — consumidor:**
+**Terminal 1 — histórico:**
 
 ```bash
-npm run consume:events
+npm run consume:history
+```
+
+**Terminal 1b — auditoria (opcional):**
+
+```bash
+npm run consume:audit
 ```
 
 **Terminal 2 — API:**
@@ -128,19 +144,16 @@ npm run dev
 ```bash
 curl -s -X POST http://localhost:3000/v1/qr/analyze \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer test:firebaseUidDeTeste" \
   -d '{
     "rawContent": "https://example.com",
-    "client": {
-      "platform": "android",
-      "appVersion": "1.0.0",
-      "idUser": "usr_test_001"
-    }
+    "client": { "platform": "android", "appVersion": "1.0.0" }
   }'
 ```
 
-**Esperado no consumidor:** log `qr_analyzed_consumed` com `firestore.result: "created"` (ou `"exists"` se duplicado).
+**Esperado no `consume:history`:** log `qr_analyzed_history_consumed` com `firestore.result: "created"`.
 
-**Esperado no Firestore:** documento em `scan_events/{eventId}` com `verdict`, `idUser`, `host`, `occurredAt`, `consumedAt`.
+**Esperado no Firestore:** `history/{idUser}/items/{eventId}` — o app lista via `GET /v1/history`.
 
 ---
 
@@ -157,7 +170,7 @@ Publicado pelo `safe_qr_back` após HTTP 200. Exemplo:
   "source": "safe-qr-api",
   "correlationId": "request-id-http",
   "data": {
-    "idUser": "usr_...",
+    "idUser": "Vb3ubOjy9RYt9AKpx3VzunBirEc2",
     "contentDigest": "a1b2c3d4e5f67890",
     "rawByteLength": 42,
     "verdict": "safe",
@@ -166,12 +179,21 @@ Publicado pelo `safe_qr_back` após HTTP 200. Exemplo:
     "reasonsCount": 1,
     "parsed": { "type": "url", "scheme": "https", "host": "example.com" },
     "client": { "platform": "android", "appVersion": "1.0.0" },
-    "analysisDurationMs": 85
+    "analysisDurationMs": 85,
+    "historyItem": {
+      "id": "uuid-v4",
+      "type": "scan",
+      "content": "https://example.com",
+      "createdAtMs": 1717881330123,
+      "verdict": "safe",
+      "safeToOpen": true,
+      "reasons": ["HTTPS OK"]
+    }
   }
 }
 ```
 
-**Privacidade:** sem `rawContent` na mensagem — apenas hash (`contentDigest`) e metadados.
+**Privacidade:** `contentDigest` + hash na auditoria; `historyItem.content` (truncado 2000 chars) só no payload para o consumidor de histórico.
 
 Validação: `src/schemas/qr-analyzed.schema.ts` (Zod).
 
@@ -185,33 +207,31 @@ safe_qr_messaging/
 ├── docs/
 │   └── 01-PUBSUB-IMPLEMENTACAO.md
 ├── scripts/
-│   └── consume-analyze-events.ts   # entrypoint CLI
+│   ├── consume-history.ts
+│   ├── consume-audit.ts
+│   └── run-consumer.ts
 ├── src/
-│   ├── config/env.ts
-│   ├── lib/logger.ts
-│   ├── schemas/qr-analyzed.schema.ts
-│   ├── mappers/scan-event-document.mapper.ts
-│   ├── repositories/
-│   │   ├── scan-event-repository.port.ts
-│   │   ├── firestore-scan-event.repository.ts
-│   │   ├── null-scan-event.repository.ts
-│   │   └── create-scan-event-repository.ts
-│   ├── services/
-│   │   ├── pubsub-subscriber.service.ts
-│   │   └── processed-event-cache.ts
-│   └── handlers/qr-analyzed.handler.ts
-└── test/qr-analyzed.schema.test.ts
+│   ├── handlers/
+│   │   ├── qr-analyzed-history.handler.ts
+│   │   └── qr-analyzed-audit.handler.ts
+│   ├── repositories/ (history + scan_events)
+│   └── services/pubsub-subscriber.service.ts
+└── test/
 ```
 
 ### Fluxo interno
 
-1. `PubSubSubscriberService` — pull da subscription
+1. `PubSubSubscriberService` — pull da subscription (history ou audit)
 2. Parse JSON + validação Zod
 3. Dedupe `eventId` em memória (at-least-once)
-4. `QrAnalyzedHandler` — grava Firestore + log estruturado (Pino)
-5. `ack` em sucesso; `nack` em erro (retry — ex.: Firestore indisponível)
+4. Handler grava Firestore + log (Pino)
+5. `ack` em sucesso; `nack` em erro
 
-### Documento Firestore (`scan_events/{eventId}`)
+### Firestore
+
+**Histórico** (`consume:history`): `history/{idUser}/items/{id}`
+
+**Auditoria** (`consume:audit`): `scan_events/{eventId}`
 
 | Campo | Descrição |
 |-------|-----------|
@@ -231,7 +251,8 @@ safe_qr_messaging/
 |----------|-------------|---------|-----------|
 | `GCP_PROJECT_ID` | Sim | — | ID do projeto GCP |
 | `GOOGLE_APPLICATION_CREDENTIALS` | Sim (local) | — | Caminho para JSON da SA consumer |
-| `PUBSUB_SUBSCRIPTION` | Não | `safe-qr-analyze-events-sub` | Subscription pull |
+| `PUBSUB_SUBSCRIPTION_AUDIT` | Não | `safe-qr-analyze-events-sub` | Subscription auditoria |
+| `PUBSUB_SUBSCRIPTION_HISTORY` | Não | `safe-qr-analyze-events-sub-history` | Subscription histórico |
 | `CONSUMER_ENABLED` | Não | `true` | Liga/desliga consumidor |
 | `CONSUMER_MAX_MESSAGES` | Não | `10` | Flow control |
 | `CONSUMER_ACK_DEADLINE_SEC` | Não | `60` | Referência documental |
@@ -255,7 +276,7 @@ safe_qr_messaging/
 
 | Fase | Item |
 |------|------|
-| Back | `GET /v1/scan-events` (listar do Firestore) |
+| Back | `GET /v1/scan-events` (listar auditoria) |
 | Tópico 2 | `safe-qr-blocklist-updates` (consumidor separado) |
 | Opcional | Dead-letter topic + subscription |
 | Opcional | Cloud Run job para consumidor 24/7 |
@@ -275,10 +296,11 @@ safe-qr-mobile/
 
 ## Documentação
 
-- **[docs/01-PUBSUB-IMPLEMENTACAO.md](./docs/01-PUBSUB-IMPLEMENTACAO.md)** — especificação completa (GCP, IAM, contratos, integração)
+- **[docs/02-FANOUT-HISTORICO-AUDIT.md](./docs/02-FANOUT-HISTORICO-AUDIT.md)** — fan-out (histórico + auditoria)
+- **[docs/01-PUBSUB-IMPLEMENTACAO.md](./docs/01-PUBSUB-IMPLEMENTACAO.md)** — setup GCP, IAM, contratos
 - `safe_qr_back/docs/` — API e endpoints
 - `safe_qr_app/docs/07-api-integracao.md` — integração mobile
 
 ---
 
-**Versão:** 0.2.0 · **Stack:** Node 20, TypeScript, `@google-cloud/pubsub`, `firebase-admin`, Zod, Pino
+**Versão:** 0.3.0 · **Stack:** Node 20, TypeScript, `@google-cloud/pubsub`, `firebase-admin`, Zod, Pino

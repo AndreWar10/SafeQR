@@ -68,15 +68,16 @@ Testes usam `app.inject()` do Fastify (sem porta TCP real).
 
 | Serviço | Uso | Obrigatório? |
 |---------|-----|--------------|
-| **Cloud Firestore** | Documento `suspicious_hosts/clones` | Não — opcional via credenciais |
-| **Firebase Admin SDK** | Autenticação com conta de serviço | Só se Firestore ativo |
+| **Cloud Firestore** | Blocklist `suspicious_hosts/clones` + histórico `history/{uid}/items` | Não — opcional via credenciais |
+| **Firebase Admin SDK** | `verifyIdToken` (analyze + history) + leitura/escrita Firestore | Obrigatório para auth em produção |
+| **Cloud Pub/Sub** | Evento `qr.analyzed` após analyze 200 | Não — `PUBSUB_ENABLED=true` |
 
 ## Nuvem (ecossistema Google)
 
 O projeto compartilha o **projeto Firebase** com o app Flutter:
 
 - App Flutter: `firebase_core`, `cloud_firestore` (client SDK)
-- Backend: `firebase-admin` (server SDK, leitura da blocklist)
+- Backend: `firebase-admin` (server SDK — `verifyIdToken`, blocklist, histórico Firestore)
 
 Credenciais aceitas:
 
@@ -90,6 +91,7 @@ Credenciais aceitas:
 |---------|---------------|
 | Segredos fora do Git | `.gitignore` para `.env`, `safe-qr-app-*.json` |
 | Validação de entrada | Zod no body + limite de bytes no controller |
+| Autenticação API | `Authorization: Bearer` + `verifyIdToken` em analyze e history |
 | CORS | Aberto (`origin: true`) — adequado para dev; restringir em produção |
 | TLS | Responsabilidade do proxy/reverse proxy em produção |
 | Logs sem PII | Digest SHA-256 truncado (16 chars hex) |

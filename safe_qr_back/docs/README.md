@@ -17,13 +17,17 @@ Documentação técnica completa da API REST do projeto **Safe QR**. Este backen
 | 09 | [Testes e qualidade](./09-testes-qualidade.md) | Vitest, ESLint, cobertura |
 | 10 | [Integração mobile](./10-integracao-mobile.md) | Contrato com o app Flutter |
 | 11 | [Roadmap e evolução](./11-roadmap-evolucao.md) | Próximas sprints, gaps, Pub/Sub |
+| 12 | [API de Histórico](./12-api-historico.md) | CRUD `/v1/history`, auth, Firestore |
+| 13 | [Pub/Sub qr.analyzed](./13-pubsub-qr-analyzed.md) | Evento + histórico assíncrono |
 
 ## Resumo em 30 segundos
 
 - **O quê:** API Node.js (TypeScript) que recebe o texto bruto de um QR Code e responde com `verdict`, `safeToOpen`, `reasons` e `parsed`.
 - **Como:** Fastify + Zod + heurística local (espelhando o motor do app) + lista opcional de domínios suspeitos no **Firestore**.
-- **Endpoints atuais:** `GET /v1/health`, `GET /health`, `POST /v1/qr/analyze`.
-- **Versão:** `0.1.0` (Sprint 1 + evolução Firestore).
+- **Endpoints atuais:** `GET /v1/health`, `POST /v1/qr/analyze` (**Bearer obrigatório**), CRUD `/v1/history` (**Bearer obrigatório**).
+- **Auth:** Firebase ID Token (`getIdToken()`) em analyze e history — `client.idUser` no body não autentica.
+- **Mensageria:** Pub/Sub `qr.analyzed` → `safe_qr_messaging` (histórico + auditoria). Ver doc 13.
+- **Versão:** `0.1.0` (Sprint 1 + Firestore + histórico + Pub/Sub).
 
 ## Estrutura do código-fonte
 
@@ -35,12 +39,13 @@ safe_qr_back/
 │   ├── config/env.ts          # Variáveis de ambiente tipadas (Zod)
 │   ├── lib/logger.ts          # Pino (logs estruturados)
 │   ├── routes/v1.routes.ts    # Registro de rotas /v1
-│   ├── controllers/           # Orquestração HTTP
-│   ├── services/              # Regras de negócio + Firestore
+│   ├── controllers/           # Orquestração HTTP (analyze, history, health)
+│   ├── services/              # Regras de negócio + Firestore + auth
 │   ├── models/                # Tipos de domínio
 │   ├── schemas/               # Validação de entrada (Zod)
 │   └── views/                 # Serialização JSON de resposta/erro
-├── test/                      # Vitest (12 testes)
+├── test/                      # Vitest (38 testes)
+├── docs/Safe-QR-API.postman_collection.json
 ├── docs/                      # Esta documentação
 ├── .env.example
 └── package.json
@@ -53,7 +58,7 @@ cd safe_qr_back
 cp .env.example .env
 npm install
 npm run dev      # desenvolvimento com hot-reload
-npm test         # 12 testes
+npm test         # 38 testes
 npm run build && npm start   # produção
 ```
 
@@ -65,4 +70,4 @@ npm run build && npm start   # produção
 
 ---
 
-*Última atualização: junho de 2026 — gerado a partir da análise do repositório.*
+*Última atualização: junho de 2026 — auth Firebase obrigatória em `POST /v1/qr/analyze` e `/v1/history`.*

@@ -3,31 +3,10 @@ import { getFirestore } from 'firebase-admin/firestore';
 import { resolveFirebaseKeyFilePath, type Env } from '../config/env.js';
 import { ensureFirebaseApp } from '../lib/firebase-app.js';
 import type { Logger } from '../lib/logger.js';
+import { isAlreadyExistsError, isPermissionDeniedError } from '../lib/firestore-errors.js';
 import { mapEnvelopeToScanEventDocument } from '../mappers/scan-event-document.mapper.js';
 import type { QrAnalyzedEnvelope } from '../schemas/qr-analyzed.schema.js';
 import type { ScanEventRepository, ScanEventSaveResult } from './scan-event-repository.port.js';
-
-const ALREADY_EXISTS_CODE = 6;
-
-const PERMISSION_DENIED_CODE = 7;
-
-function isAlreadyExistsError(err: unknown): boolean {
-  return (
-    typeof err === 'object' &&
-    err !== null &&
-    'code' in err &&
-    (err as { code: number }).code === ALREADY_EXISTS_CODE
-  );
-}
-
-function isPermissionDeniedError(err: unknown): boolean {
-  return (
-    typeof err === 'object' &&
-    err !== null &&
-    'code' in err &&
-    (err as { code: number }).code === PERMISSION_DENIED_CODE
-  );
-}
 
 export class FirestoreScanEventRepository implements ScanEventRepository {
   private initialized = false;

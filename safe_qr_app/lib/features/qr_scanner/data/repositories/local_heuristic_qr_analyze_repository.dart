@@ -12,7 +12,6 @@ final class LocalHeuristicQrAnalyzeRepository implements QrAnalyzeRepository {
     String rawContent, {
     String? appVersion,
     String? platform,
-    String? idUser,
   }) async {
     // Simula a latência mínima (RNF-03) sem bloquear a UI desnecessariamente.
     await Future<void>.delayed(const Duration(milliseconds: 200));

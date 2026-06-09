@@ -27,6 +27,7 @@ Documentação técnica do aplicativo mobile **Safe QR** (`safe_qr_app`).
 | 14 | [Desenvolvimento](./14-desenvolvimento.md) | Setup, debug, logs, convenções de código |
 | 15 | [Roadmap e gaps](./15-roadmap-gaps.md) | Evolução planejada, débitos técnicos |
 | 16 | [Requisitos app — backlog](./16-requisitos-app-backlog.md) | Conformidade RF-M/RNF e plano de execução (escopo mobile) |
+| 17 | [Identidade Firebase Anonymous](./17-identidade-firebase-anonymous.md) | `idUser`, setup manual, arquitetura |
 
 ---
 
@@ -37,6 +38,8 @@ Documentação técnica do aplicativo mobile **Safe QR** (`safe_qr_app`).
 | Privacidade mobile (RNF-02) | [`MOBILE-DADOS-EPRIVACIDADE.md`](./MOBILE-DADOS-EPRIVACIDADE.md) |
 | Sprint 1 — entregáveis acadêmicos | [`../../docs/SPRINT-1-ENTREGAVEIS.md`](../../docs/SPRINT-1-ENTREGAVEIS.md) |
 | Integração mobile (backend) | [`../../safe_qr_back/docs/10-integracao-mobile.md`](../../safe_qr_back/docs/10-integracao-mobile.md) |
+| Pub/Sub + histórico assíncrono | [`../../safe_qr_messaging/docs/02-FANOUT-HISTORICO-AUDIT.md`](../../safe_qr_messaging/docs/02-FANOUT-HISTORICO-AUDIT.md) |
+| Pub/Sub (produtor back) | [`../../safe_qr_back/docs/13-pubsub-qr-analyzed.md`](../../safe_qr_back/docs/13-pubsub-qr-analyzed.md) |
 | API endpoints (backend) | [`../../safe_qr_back/docs/05-api-endpoints.md`](../../safe_qr_back/docs/05-api-endpoints.md) |
 | READMEs por feature | `lib/features/*/README.md` |
 

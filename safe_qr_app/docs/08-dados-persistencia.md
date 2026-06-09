@@ -4,12 +4,14 @@
 
 | Armazenamento | Tecnologia | Conteúdo |
 |---------------|------------|----------|
-| Histórico | SQLite (`sqflite`) | Scans e QR gerados |
+| Histórico (local) | SQLite (`sqflite`) | Scans e QR gerados — `ANALYZE_MODE=local` |
+| Histórico (remoto) | Firestore via API | `GET /v1/history` — scans via Pub/Sub + `consume:history` |
+| Identidade | Firebase Anonymous Auth | UID + JWT (sem conta real) |
 | Preferências | `shared_preferences` | Modo de tema |
 | Config runtime | `assets/.env` | URL API, modo análise, timeouts |
 | Memória | ViewModels | Estado transitório da UI |
 
-**Não há** persistência remota de histórico nem conta de usuário na Sprint 1.
+Modo remoto: o app **não** grava scan localmente após analyze — o histórico vem do servidor.
 
 ---
 

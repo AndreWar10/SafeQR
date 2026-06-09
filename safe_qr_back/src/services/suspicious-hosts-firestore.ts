@@ -1,7 +1,6 @@
-import { applicationDefault, cert, getApps, initializeApp } from 'firebase-admin/app';
-import type { ServiceAccount } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 
+import { ensureFirebaseApp } from '../lib/firebase-admin.js';
 import type { SuspiciousHostsPort } from './suspicious-hosts-port.js';
 import { hostnameMatchesBlocklist, listEntryToNormalizedHost, normalizeHostname } from './suspicious-hosts-match.js';
 
@@ -35,26 +34,13 @@ export class FirestoreSuspiciousHostsPort implements SuspiciousHostsPort {
     }
   }
 
-  private ensureFirebaseApp(): void {
-    if (getApps().length > 0) {
-      return;
-    }
-    const rawJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON?.trim();
-    if (rawJson) {
-      const parsed = JSON.parse(rawJson) as ServiceAccount;
-      initializeApp({ credential: cert(parsed) });
-      return;
-    }
-    initializeApp({ credential: applicationDefault() });
-  }
-
   private async loadBlocklist(): Promise<Set<string>> {
     const now = Date.now();
     if (this.cache && now - this.cache.fetchedAt < this.cfg.cacheTtlMs) {
       return this.cache.hosts;
     }
 
-    this.ensureFirebaseApp();
+    ensureFirebaseApp();
     const db = getFirestore();
     const snap = await db.doc(DOC_PATH).get();
     if (!snap.exists) {

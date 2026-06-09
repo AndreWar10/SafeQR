@@ -43,7 +43,7 @@ Variáveis principais (ver `.env.example`):
 | `npm run dev` | Servidor com reload (`tsx watch`). |
 | `npm run build` | Compila para `dist/` (ESM). |
 | `npm start` | Executa `dist/server.js` (após `build`). |
-| `npm test` | Vitest (health + contrato `analyze`). |
+| `npm test` | Vitest (health, analyze, history, pubsub — 38 testes). |
 | `npm run lint` | ESLint. |
 
 ## Endpoints (S1)
@@ -53,6 +53,8 @@ Variáveis principais (ver `.env.example`):
 Health check (**RF-B01**): `200` + JSON `{ status, service, version }`.
 
 ### `POST /v1/qr/analyze`
+
+**Auth:** `Authorization: Bearer <Firebase ID Token>` (obrigatório — mesmo contrato do histórico).
 
 **RF-B02–B04**: corpo JSON validado:
 
@@ -65,8 +67,24 @@ Health check (**RF-B01**): `200` + JSON `{ status, service, version }`.
 
 Resposta `200` no formato esperado pelo app (`requestId`, `verdict`, `safeToOpen`, `reasons`, `parsed`).
 
+- `401` — Bearer ausente ou JWT inválido.
 - `400` — validação (corpo inválido).
 - `413` — conteúdo acima de `MAX_RAW_CONTENT_BYTES`.
+
+### Histórico na nuvem — `/v1/history`
+
+Espelha o SQLite local do app. Documentação completa: [`docs/12-api-historico.md`](docs/12-api-historico.md).
+
+| Método | Path | Descrição |
+|--------|------|-----------|
+| `POST` | `/v1/history` | Upsert de item (`scan` ou `generated`) |
+| `GET` | `/v1/history` | Lista do utilizador (`createdAtMs DESC`) |
+| `DELETE` | `/v1/history/{id}` | Apaga um item |
+| `DELETE` | `/v1/history` | Limpa todo o histórico do utilizador |
+
+Auth: `Authorization: Bearer <Firebase ID Token>` (`getIdToken()` no app). O `idUser` vem do JWT (`decoded.uid`).
+
+Postman: importar [`docs/Safe-QR-API.postman_collection.json`](docs/Safe-QR-API.postman_collection.json). Referência: [`docs/05-api-endpoints.md`](docs/05-api-endpoints.md).
 
 ## Privacidade e logs (S1)
 
@@ -74,7 +92,7 @@ Logs estruturados incluem **tamanho em bytes** e um **digest curto (SHA-256 trun
 
 ## Integração com o app Flutter
 
-Aponte a base URL do cliente HTTP para `http://<host>:<PORT>` (ou HTTPS atrás de proxy) e mantenha o path **`/v1/qr/analyze`** conforme `AppEndpoints` no mobile.
+Aponte a base URL do cliente HTTP para `http://<host>:<PORT>` (ou HTTPS atrás de proxy) e mantenha o path **`/v1/qr/analyze`** conforme `AppEndpoints` no mobile. O app deve enviar **`Authorization: Bearer <getIdToken()>`** em analyze e history.
 
 ## Licença
 

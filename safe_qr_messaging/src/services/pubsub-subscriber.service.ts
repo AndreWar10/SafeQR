@@ -16,6 +16,7 @@ export class PubSubSubscriberService {
   constructor(
     private readonly env: Env,
     private readonly logger: Logger,
+    private readonly subscriptionName: string = env.PUBSUB_SUBSCRIPTION,
   ) {}
 
   async start(onMessage: MessageHandler): Promise<void> {
@@ -27,7 +28,7 @@ export class PubSubSubscriberService {
     }
 
     const pubsub = new PubSub(clientOptions);
-    this.subscription = pubsub.subscription(this.env.PUBSUB_SUBSCRIPTION, {
+    this.subscription = pubsub.subscription(this.subscriptionName, {
       flowControl: { maxMessages: this.env.CONSUMER_MAX_MESSAGES },
     });
 
@@ -41,7 +42,7 @@ export class PubSubSubscriberService {
 
     this.logger.info(
       {
-        subscription: this.env.PUBSUB_SUBSCRIPTION,
+        subscription: this.subscriptionName,
         projectId: this.env.GCP_PROJECT_ID,
       },
       'Consumidor Pub/Sub ativo (aguardando mensagens)',

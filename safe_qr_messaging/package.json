@@ -1,6 +1,6 @@
 {
   "name": "safe-qr-messaging",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Safe QR — consumidor Pub/Sub (Tópico 1: qr.analyzed)",
   "type": "module",
@@ -8,7 +8,9 @@
     "node": ">=20"
   },
   "scripts": {
-    "consume:events": "tsx scripts/consume-analyze-events.ts",
+    "consume:audit": "tsx scripts/consume-audit.ts",
+    "consume:history": "tsx scripts/consume-history.ts",
+    "consume:events": "tsx scripts/consume-audit.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },

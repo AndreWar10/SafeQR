@@ -92,12 +92,24 @@ Accept: application/json
 
 Implementado em `RemoteQrAnalyzeRepository`:
 
+**Headers:**
+
+```http
+Authorization: Bearer <Firebase ID Token>
+Content-Type: application/json
+```
+
+Token via `UserIdentityService.authorizationHeaders()`.
+
+**Body:**
+
 ```json
 {
   "rawContent": "https://exemplo.com/pagamento",
   "client": {
     "appVersion": "1.0.0",
-    "platform": "android"
+    "platform": "android",
+    "idUser": "K7xY2zQ1aBcDeFgHiJkLmNoPqRs"
   }
 }
 ```
@@ -107,6 +119,9 @@ Implementado em `RemoteQrAnalyzeRepository`:
 | `rawContent` | Conteúdo escaneado (clip 2000 chars) |
 | `client.appVersion` | `AppBuildInfo.versionLabel` |
 | `client.platform` | `android`, `ios`, `web`, etc. |
+| `client.idUser` | Firebase Anonymous UID via `UserIdentityService` |
+
+Detalhes de identidade: [17-identidade-firebase-anonymous.md](./17-identidade-firebase-anonymous.md).
 
 ### Response `200`
 
@@ -195,15 +210,18 @@ Implementação: `DioAppNetwork` com:
 
 ---
 
-## Histórico — não vai para API
+## Histórico remoto
 
-Após análise remota bem-sucedida, o app grava **localmente** em SQLite:
+| Operação | Quem faz |
+|----------|----------|
+| Scan → analyze | App (`POST /v1/qr/analyze` + Bearer) |
+| Gravar scan no histórico | `safe_qr_messaging` (`consume:history` → Pub/Sub → Firestore) |
+| Listar histórico | App (`GET /v1/history` + Bearer) |
+| QR gerado | App (`POST /v1/history` + Bearer) |
 
-- Conteúdo do QR
-- Veredito, `safeToOpen`, razões
-- Timestamp
+Modo `ANALYZE_MODE=local`: histórico continua em **SQLite** no aparelho.
 
-O backend **não persiste** histórico de scans do usuário na Sprint 1.
+Ver: [08-dados-persistencia.md](./08-dados-persistencia.md), [safe_qr_messaging/docs/02-FANOUT-HISTORICO-AUDIT.md](../../safe_qr_messaging/docs/02-FANOUT-HISTORICO-AUDIT.md).
 
 ---
 
@@ -211,19 +229,20 @@ O backend **não persiste** histórico de scans do usuário na Sprint 1.
 
 | Componente | SDK | Papel atual |
 |------------|-----|-------------|
-| App Flutter | `firebase_core` | Inicialização apenas |
-| App Flutter | `cloud_firestore` | Declarado, **não usado** |
-| Backend | `firebase-admin` | Blocklist `suspicious_hosts/clones` |
+| App Flutter | `firebase_core` + `firebase_auth` | Sessão anónima → Bearer JWT |
+| Backend | `firebase-admin` | Blocklist + verify token + histórico CRUD |
+| `safe_qr_messaging` | `firebase-admin` | Grava `history/...` e `scan_events` |
 
 ---
 
 ## Testar integração
 
 1. Subir backend: `cd safe_qr_back && npm run dev`
-2. Descobrir IP: `ipconfig` (Windows)
-3. Configurar `assets/.env`: `API_BASE_URL=http://<IP>:3000`, `ANALYZE_MODE=remote`
-4. Rebuild Flutter: `flutter run`
-5. Escanear QR e verificar logs (`SafeQR.Net`, log do backend)
+2. Subir consumidor histórico: `cd safe_qr_messaging && npm run consume:history`
+3. Descobrir IP: `ipconfig` (Windows)
+4. Configurar `assets/.env`: `API_BASE_URL=http://<IP>:3000`, `ANALYZE_MODE=remote`
+5. Rebuild Flutter: `flutter run`
+6. Escanear QR → aba Histórico → pull-to-refresh
 
 Documentação backend: [`../../safe_qr_back/docs/10-integracao-mobile.md`](../../safe_qr_back/docs/10-integracao-mobile.md)
 

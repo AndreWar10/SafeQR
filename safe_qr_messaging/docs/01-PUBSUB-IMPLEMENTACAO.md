@@ -1,9 +1,11 @@
 # 01 — Pub/Sub Safe QR: especificação técnica de implementação
 
 **Repositório:** `safe_qr_messaging`  
-**Versão do documento:** 1.1  
+**Versão do documento:** 1.2  
 **Data:** junho de 2026  
-**Escopo:** Tópico 1 — eventos de análise (`qr.analyzed`). Persistência em banco (Firestore, etc.) **fora deste módulo**.
+**Escopo:** Tópico 1 — eventos de análise (`qr.analyzed`). Fan-out com **dois consumidores** (histórico + auditoria).
+
+> **Atualização v1.2:** consumidores gravam Firestore (`history/...` e `scan_events`). Ver **[02-FANOUT-HISTORICO-AUDIT.md](./02-FANOUT-HISTORICO-AUDIT.md)** para o fluxo atual.
 
 ---
 
@@ -44,25 +46,24 @@ O endpoint `POST /v1/qr/analyze` responde de forma **síncrona** ao app. Emitir 
 
 | Papel | Componente | Responsabilidade |
 |-------|------------|------------------|
-| Produtor | `safe_qr_back` | Após HTTP 200, publica envelope JSON no Pub/Sub (**fire-and-forget**) |
-| Broker | Google Cloud Pub/Sub | Tópico + subscription, entrega at-least-once |
-| Consumidor | `safe_qr_messaging` | Pull/subscribe, **valida** evento, **registra log estruturado**, **ack** |
+| Produtor | `safe_qr_back` | Após HTTP 200 + Bearer, publica envelope com `historyItem` (**fire-and-forget**) |
+| Broker | Google Cloud Pub/Sub | 1 tópico, fan-out para 2 subscriptions |
+| Consumidor histórico | `consume:history` | Grava `history/{idUser}/items/{id}` |
+| Consumidor auditoria | `consume:audit` | Grava `scan_events/{eventId}` |
 
 ### 1.3 Fora de escopo deste módulo
 
-- **Escrita em Firestore** ou qualquer coleção/banco a partir do consumidor
 - Publicação automática na blocklist (Tópico 2 — ver [§21](#21-tópico-2-futuro--blocklist))
-- Alterações no contrato de resposta HTTP do analyze
-- Envio de `rawContent` em qualquer mensagem Pub/Sub
-
-> Persistência server-side (`scan_events`, CRUD, etc.) é responsabilidade de **`safe_qr_back`** ou outro serviço — **não** de `safe_qr_messaging`.
+- `GET /v1/history` (fica no `safe_qr_back`)
+- Resposta HTTP síncrona do analyze (fica no back)
 
 ### 1.4 Nomenclatura fixa (não alterar sem versionar schema)
 
 | Recurso GCP | Nome |
 |-------------|------|
 | Tópico | `safe-qr-analyze-events` |
-| Subscription (pull, dev/demo) | `safe-qr-analyze-events-sub` |
+| Subscription auditoria | `safe-qr-analyze-events-sub` |
+| Subscription histórico | `safe-qr-analyze-events-sub-history` |
 | Subscription DLQ (opcional fase 2) | `safe-qr-analyze-events-dlq-sub` |
 | Dead-letter topic (opcional) | `safe-qr-analyze-events-dlq` |
 
@@ -87,11 +88,14 @@ flowchart TB
     APP -->|histórico local| SQLITE[(SQLite)]
   end
 
-  subgraph async[Mensageria Tópico 1 — safe_qr_messaging]
+  subgraph async[Mensageria Tópico 1 — fan-out]
     API -->|publish qr.analyzed| TOPIC[Pub/Sub Topic safe-qr-analyze-events]
-    TOPIC --> SUB[Subscription safe-qr-analyze-events-sub]
-    SUB --> CON[safe_qr_messaging consumer]
-    CON --> LOG[Log estruturado Pino / stdout]
+    TOPIC --> SUB_H[sub-history]
+    TOPIC --> SUB_A[sub-audit]
+    SUB_H --> CON_H[consume:history]
+    SUB_A --> CON_A[consume:audit]
+    CON_H --> FH[(history/idUser/items)]
+    CON_A --> SE[(scan_events)]
   end
 ```
 
@@ -106,7 +110,7 @@ sequenceDiagram
   participant Sub as Subscription
   participant Msg as safe_qr_messaging
 
-  App->>API: POST /v1/qr/analyze { rawContent, client.idUser }
+  App->>API: POST /v1/qr/analyze + Bearer JWT
   API->>FS: isListedHostname (se credenciais)
   API->>API: QrAnalyzeService.evaluateAsync
   API-->>App: 200 { verdict, safeToOpen, reasons, parsed }
@@ -114,8 +118,8 @@ sequenceDiagram
   API->>PS: publishMessage(envelope qr.analyzed)
   PS->>Sub: entrega
   Sub->>Msg: pull / message handler
-  Msg->>Msg: validate envelope + dedupe eventId
-  Msg->>Msg: log estruturado
+  Msg->>Msg: validate + dedupe eventId
+  Msg->>FS2: Firestore history ou scan_events
   Msg->>Sub: ack
 ```
 
@@ -260,10 +264,11 @@ PUBSUB_TOPIC=safe-qr-analyze-events
 
 1. **Criar conta de serviço** → Nome: `safe-qr-pubsub-consumer`
 2. Roles:
-   - `Pub/Sub Subscriber` (`roles/pubsub.subscriber`) **apenas**
+   - `Pub/Sub Subscriber` (`roles/pubsub.subscriber`)
+   - **Ou** reutilizar JSON Firebase do back para Firestore (`FIREBASE_GOOGLE_APPLICATION_CREDENTIALS`)
 3. **Concluir**
 
-> **Sem** `datastore.user` — este consumidor **não escreve** em Firestore.
+> Para gravar Firestore com a mesma SA consumer, adicionar `Cloud Datastore User`. Alternativa: credencial Firebase separada no `.env` (ver README).
 
 #### Chave JSON para desenvolvimento local (`safe_qr_messaging`)
 
@@ -327,6 +332,10 @@ gcloud services enable pubsub.googleapis.com
 gcloud pubsub topics create safe-qr-analyze-events
 
 gcloud pubsub subscriptions create safe-qr-analyze-events-sub \
+  --topic=safe-qr-analyze-events \
+  --ack-deadline=60
+
+gcloud pubsub subscriptions create safe-qr-analyze-events-sub-history \
   --topic=safe-qr-analyze-events \
   --ack-deadline=60
 
@@ -453,7 +462,7 @@ ANALYZE_MODE=remote
   "source": "safe-qr-api",
   "correlationId": "req-7b2c9a1e-4d3f-5e6a-8b9c-0d1e2f3a4b5c",
   "data": {
-    "idUser": "usr_a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "idUser": "Vb3ubOjy9RYt9AKpx3VzunBirEc2",
     "contentDigest": "a1b2c3d4e5f67890",
     "rawByteLength": 42,
     "verdict": "unsafe",
@@ -469,7 +478,16 @@ ANALYZE_MODE=remote
       "platform": "android",
       "appVersion": "1.0.0"
     },
-    "analysisDurationMs": 85
+    "analysisDurationMs": 85,
+    "historyItem": {
+      "id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+      "type": "scan",
+      "content": "https://clone-exemplo.com",
+      "createdAtMs": 1717881330123,
+      "verdict": "unsafe",
+      "safeToOpen": false,
+      "reasons": ["Host na lista de alertas."]
+    }
   }
 }
 ```
@@ -478,7 +496,7 @@ ANALYZE_MODE=remote
 
 | Campo | Tipo | Obrigatório | Regras |
 |-------|------|-------------|--------|
-| `idUser` | string \| null | Não | UUID/pseudônimo; `null` se app não enviar |
+| `idUser` | string \| null | Sim p/ histórico | Firebase UID do Bearer JWT |
 | `contentDigest` | string | Sim | Primeiros 16 hex chars SHA-256 UTF-8 do `rawContent` |
 | `rawByteLength` | integer | Sim | `Buffer.byteLength(rawContent, 'utf8')` |
 | `verdict` | enum | Sim | `safe` \| `suspicious` \| `unsafe` \| `unknown` |
@@ -491,6 +509,7 @@ ANALYZE_MODE=remote
 | `client.platform` | string | Não | `android`, `ios`, `web`, `windows` |
 | `client.appVersion` | string | Não | Semver do app |
 | `analysisDurationMs` | integer | Sim | Tempo do `evaluateAsync` |
+| `historyItem` | object | Sim se `idUser` | Ver [02-FANOUT](./02-FANOUT-HISTORICO-AUDIT.md); `id` = `eventId` |
 
 #### Atributos Pub/Sub (opcional, recomendado)
 
@@ -551,40 +570,37 @@ Gerado em `safe_qr_back` (`deriveReasonCodes(model, context)`).
 
 ### 11.1 Origem (app)
 
-1. Primeiro launch → UUID v4 → `usr_<uuid>`
-2. Persistir em `SharedPreferences` (`safe_qr_id_user`)
-3. Enviar em todo analyze remoto
+1. `FirebaseAuth.signInAnonymously()` no bootstrap
+2. `UserIdentityService.getIdToken()` → header Bearer
+3. `decoded.uid` no back vira `data.idUser` no evento
 
 ### 11.2 Request HTTP
 
-```json
-{
-  "rawContent": "https://example.com",
-  "client": {
-    "appVersion": "1.0.0",
-    "platform": "android",
-    "idUser": "usr_a1b2c3d4-e5f6-7890-abcd-ef1234567890"
-  }
-}
+```http
+POST /v1/qr/analyze
+Authorization: Bearer <Firebase ID Token>
+Content-Type: application/json
+
+{ "rawContent": "https://example.com", "client": { "platform": "android" } }
 ```
 
-### 11.3 Schema Zod (`safe_qr_back`)
+### 11.3 Back (`qr-analyze.controller.ts`)
 
 ```typescript
-client: z.object({
-  appVersion: z.string().max(64).optional(),
-  platform: z.string().max(32).optional(),
-  idUser: z.string().max(128).optional(),
-}).optional(),
+const identity = await userIdentity.resolveBearerUid(req);
+if (!identity.ok) return 401;
+const idUser = identity.idUser; // mesmo serviço do /v1/history
 ```
+
+`client.idUser` no body **não autentica**.
 
 ### 11.4 Propagação
 
 ```
-App client.idUser → Controller → Publish qr.analyzed data.idUser → Consumidor log
+Bearer JWT → decoded.uid → publish data.idUser + historyItem → consume:history → Firestore
 ```
 
-Se ausente: publicar `"idUser": null` (não rejeitar analyze).
+Analyze **sem** Bearer válido → HTTP 401 (não publica).
 
 ---
 
@@ -596,21 +612,18 @@ safe_qr_messaging/
 ├── docs/
 │   └── 01-PUBSUB-IMPLEMENTACAO.md
 ├── scripts/
-│   └── consume-analyze-events.ts   # entry CLI consumidor
+│   ├── consume-history.ts
+│   ├── consume-audit.ts
+│   └── run-consumer.ts
 ├── src/
-│   ├── config/
-│   │   └── env.ts
-│   ├── lib/
-│   │   └── logger.ts               # Pino
-│   ├── models/
-│   │   └── analyze-event.envelope.ts
-│   ├── schemas/
-│   │   └── qr-analyzed.schema.ts
-│   ├── services/
-│   │   ├── pubsub-subscriber.service.ts
-│   │   └── processed-event-cache.ts  # dedupe eventId em memória
-│   └── handlers/
-│       └── qr-analyzed.handler.ts    # validate + log
+│   ├── handlers/
+│   │   ├── qr-analyzed-history.handler.ts
+│   │   └── qr-analyzed-audit.handler.ts
+│   ├── repositories/
+│   │   ├── firestore-history.repository.ts
+│   │   └── firestore-scan-event.repository.ts
+│   ├── schemas/qr-analyzed.schema.ts
+│   └── services/pubsub-subscriber.service.ts
 ├── test/
 │   └── qr-analyzed.schema.test.ts
 ├── .env.example
@@ -628,7 +641,8 @@ safe_qr_messaging/
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "consume:events": "tsx scripts/consume-analyze-events.ts",
+    "consume:history": "tsx scripts/consume-history.ts",
+    "consume:audit": "tsx scripts/consume-audit.ts",
     "test": "vitest run",
     "lint": "eslint ."
   },
@@ -646,7 +660,7 @@ safe_qr_messaging/
 }
 ```
 
-> **Sem** `firebase-admin` neste repo — consumidor não persiste em banco.
+> Inclui `firebase-admin` — consumidores persistem em Firestore.
 
 ---
 
@@ -692,7 +706,8 @@ reply.send(toQrAnalyzeResponseJson(model));
 
 void this.deps.eventPublisher.publishQrAnalyzed({
   correlationId: requestId,
-  idUser: client?.idUser ?? null,
+  idUser, // do Bearer JWT
+  rawContent,
   contentDigest,
   rawByteLength: byteLen,
   model,
@@ -715,9 +730,9 @@ npm install @google-cloud/pubsub
 
 ## 14. Integração em `safe_qr_app` (origem do idUser)
 
-- `UserIdentityService.getOrCreateIdUser()` → SharedPreferences
-- `RemoteQrAnalyzeRepository` envia `client.idUser`
-- Documentar em `MOBILE-DADOS-EPRIVACIDADE.md`
+- `UserIdentityService` → Firebase Anonymous Auth
+- `RemoteQrAnalyzeRepository` deve enviar `Authorization: Bearer` (ver `07-api-integracao.md`)
+- Histórico remoto: `GET /v1/history` — scans gravados pelo `consume:history`, não pelo app
 
 ---
 
@@ -727,12 +742,12 @@ npm install @google-cloud/pubsub
 
 | Faz | Não faz |
 |-----|---------|
-| Pull da subscription | Escrever Firestore / SQL |
-| Validar envelope (Zod) | Chamar API |
-| Dedupe `eventId` (memória) | Transformar blocklist |
-| Log estruturado (Pino) | Persistir histórico |
+| Pull da subscription | Responder HTTP ao app |
+| Validar envelope (Zod) | Publicar no Pub/Sub |
+| Dedupe `eventId` (memória) | Atualizar blocklist |
+| Gravar Firestore + log | Substituir `GET /v1/history` |
 
-### 15.2 Algoritmo (`consume-analyze-events.ts`)
+### 15.2 Algoritmo (`consume-history.ts` / `consume-audit.ts`)
 
 ```
 1. loadEnv()

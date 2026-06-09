@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/constants/app_strings.dart';
 import '../../../core/theme/app_theme_mode_controller.dart';
 
 class ThemeCycleAction extends StatelessWidget {
@@ -10,14 +11,11 @@ class ThemeCycleAction extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<AppThemeModeController>(
       builder: (BuildContext context, AppThemeModeController t, _) {
+        final bool isDark = t.mode == ThemeMode.dark;
         return IconButton(
-          tooltip: 'Aparência',
-          onPressed: () => t.cycle(),
-          icon: switch (t.mode) {
-            ThemeMode.system => const Icon(Icons.brightness_auto_rounded),
-            ThemeMode.light => const Icon(Icons.dark_mode_outlined),
-            ThemeMode.dark => const Icon(Icons.light_mode_outlined),
-          },
+          tooltip: isDark ? AppStrings.themeLight : AppStrings.themeDark,
+          onPressed: t.cycle,
+          icon: Icon(isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined),
         );
       },
     );

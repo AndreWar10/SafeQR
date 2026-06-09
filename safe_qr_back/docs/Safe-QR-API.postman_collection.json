@@ -1,0 +1,158 @@
+{
+  "info": {
+    "name": "Safe QR API (safe-qr-back)",
+    "description": "API REST do Safe QR — health, análise de QR e histórico na nuvem.\n\n## Variáveis\n- `baseUrl` — ex.: http://localhost:3000\n- `firebaseToken` — JWT de getIdToken() (NÃO é o UID)\n- `historyItemId` — UUID do item de histórico\n\n## Auth (analyze + history)\nAuthorization: Bearer {{firebaseToken}}\nO idUser vem do token (decoded.uid), ex.: Vb3ubOjy9RYt9AKpx3VzunBirEc2",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000" },
+    { "key": "firebaseToken", "value": "" },
+    { "key": "historyItemId", "value": "a1b2c3d4-e5f6-7890-abcd-ef1234567890" }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "GET /v1/health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/v1/health",
+            "description": "Verifica se a API está operacional."
+          }
+        },
+        {
+          "name": "GET /health (alias)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/health",
+            "description": "Alias de GET /v1/health."
+          }
+        }
+      ]
+    },
+    {
+      "name": "QR Analyze (Bearer JWT obrigatório)",
+      "item": [
+        {
+          "name": "POST /v1/qr/analyze — HTTPS safe",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{firebaseToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rawContent\": \"https://example.com/path\",\n  \"client\": {\n    \"appVersion\": \"1.0.0\",\n    \"platform\": \"android\",\n    \"idUser\": \"Vb3ubOjy9RYt9AKpx3VzunBirEc2\"\n  }\n}"
+            },
+            "url": "{{baseUrl}}/v1/qr/analyze"
+          }
+        },
+        {
+          "name": "POST /v1/qr/analyze — bit.ly suspicious",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{firebaseToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rawContent\": \"https://bit.ly/abc123\",\n  \"client\": { \"platform\": \"android\" }\n}"
+            },
+            "url": "{{baseUrl}}/v1/qr/analyze"
+          }
+        },
+        {
+          "name": "POST /v1/qr/analyze — javascript unsafe",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{firebaseToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rawContent\": \"javascript:alert(1)\"\n}"
+            },
+            "url": "{{baseUrl}}/v1/qr/analyze"
+          }
+        }
+      ]
+    },
+    {
+      "name": "History (Bearer JWT obrigatório)",
+      "item": [
+        {
+          "name": "POST /v1/history — scan",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{firebaseToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"item\": {\n    \"id\": \"{{historyItemId}}\",\n    \"type\": \"scan\",\n    \"content\": \"https://example.com/path\",\n    \"createdAtMs\": 1717689600123,\n    \"verdict\": \"suspicious\",\n    \"safeToOpen\": false,\n    \"reasons\": [\"URL usa redirecionador conhecido (destino não visível diretamente).\"]\n  },\n  \"client\": {\n    \"appVersion\": \"1.0.0\",\n    \"platform\": \"android\"\n  }\n}"
+            },
+            "url": "{{baseUrl}}/v1/history",
+            "description": "Upsert por id. idUser vem do JWT, não do body. Firestore: history/{uid}/items/{id}"
+          }
+        },
+        {
+          "name": "POST /v1/history — generated",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{firebaseToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"item\": {\n    \"id\": \"b2c3d4e5-f6a7-8901-bcde-f12345678901\",\n    \"type\": \"generated\",\n    \"content\": \"WIFI:T:WPA;S:MinhaRede;P:senha123;;\",\n    \"createdAtMs\": 1717689700456,\n    \"verdict\": null,\n    \"safeToOpen\": null,\n    \"reasons\": [\"Tipo: wifi\"]\n  },\n  \"client\": { \"appVersion\": \"1.0.0\", \"platform\": \"android\" }\n}"
+            },
+            "url": "{{baseUrl}}/v1/history"
+          }
+        },
+        {
+          "name": "GET /v1/history",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{firebaseToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/v1/history?limit=100&offset=0",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "history"],
+              "query": [
+                { "key": "limit", "value": "100" },
+                { "key": "offset", "value": "0" }
+              ]
+            },
+            "description": "Lista createdAtMs DESC. Só itens do uid do token."
+          }
+        },
+        {
+          "name": "DELETE /v1/history/{id}",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{firebaseToken}}" }],
+            "url": "{{baseUrl}}/v1/history/{{historyItemId}}",
+            "description": "204 se ok. 404 se não existe ou é de outro user."
+          }
+        },
+        {
+          "name": "DELETE /v1/history — clear all",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{firebaseToken}}" }],
+            "url": "{{baseUrl}}/v1/history",
+            "description": "Apaga todo o histórico do uid do token."
+          }
+        }
+      ]
+    }
+  ]
+}

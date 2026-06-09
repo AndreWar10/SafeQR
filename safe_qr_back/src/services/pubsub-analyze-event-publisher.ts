@@ -8,6 +8,7 @@ import type {
   AnalyzeEventPublisherPort,
   QrAnalyzedPublishInput,
 } from './analyze-event-publisher.port.js';
+import { buildQrAnalyzedHistoryItem } from './build-qr-analyzed-history-item.js';
 import { NullAnalyzeEventPublisher } from './null-analyze-event-publisher.js';
 
 export class PubSubAnalyzeEventPublisher implements AnalyzeEventPublisherPort {
@@ -31,11 +32,18 @@ export class PubSubAnalyzeEventPublisher implements AnalyzeEventPublisherPort {
   }
 
   async publishQrAnalyzed(input: QrAnalyzedPublishInput): Promise<void> {
+    const eventId = randomUUID();
+    const createdAtMs = Date.now();
+    const historyItem =
+      input.idUser != null
+        ? buildQrAnalyzedHistoryItem(eventId, input.rawContent, input.model, createdAtMs)
+        : undefined;
+
     const envelope = {
       schemaVersion: '1' as const,
-      eventId: randomUUID(),
+      eventId,
       eventType: 'qr.analyzed' as const,
-      occurredAt: new Date().toISOString(),
+      occurredAt: new Date(createdAtMs).toISOString(),
       source: 'safe-qr-api' as const,
       correlationId: input.correlationId,
       data: {
@@ -56,8 +64,20 @@ export class PubSubAnalyzeEventPublisher implements AnalyzeEventPublisherPort {
           ...(input.client?.appVersion !== undefined ? { appVersion: input.client.appVersion } : {}),
         },
         analysisDurationMs: input.analysisDurationMs,
+        ...(historyItem !== undefined ? { historyItem } : {}),
       },
     };
+
+    if (input.idUser == null) {
+      this.logger.warn(
+        {
+          event: 'pubsub_qr_analyzed_no_iduser',
+          correlationId: input.correlationId,
+          eventId: envelope.eventId,
+        },
+        'Publicando qr.analyzed sem idUser — consumidor history ignorará',
+      );
+    }
 
     await this.topic.publishMessage({
       json: envelope,
@@ -73,6 +93,8 @@ export class PubSubAnalyzeEventPublisher implements AnalyzeEventPublisherPort {
         event: 'pubsub_qr_analyzed_published',
         eventId: envelope.eventId,
         correlationId: input.correlationId,
+        idUser: input.idUser,
+        hasHistoryItem: historyItem !== undefined,
         verdict: input.model.verdict,
       },
       'Evento qr.analyzed publicado',

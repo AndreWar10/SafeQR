@@ -25,3 +25,19 @@ export function payloadTooLarge(requestId: string, maxBytes: number): ErrorRespo
     requestId,
   };
 }
+
+export function unauthorizedError(requestId: string, message = 'Token ou idUser inválido.'): ErrorResponseJson {
+  return {
+    error: 'UNAUTHORIZED',
+    message,
+    requestId,
+  };
+}
+
+export function notFoundError(requestId: string, message = 'Recurso não encontrado.'): ErrorResponseJson {
+  return {
+    error: 'NOT_FOUND',
+    message,
+    requestId,
+  };
+}

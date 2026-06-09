@@ -69,7 +69,8 @@
 
 | Pacote | Versão | Uso |
 |--------|--------|-----|
-| `firebase_core` | ^4.7.0 | Inicialização no `main.dart` |
+| `firebase_core` | ^4.7.0 | Inicialização em `AppInitializer` |
+| `firebase_auth` | ^6.0.0 | Sessão anónima → `client.idUser` |
 | `cloud_firestore` | ^6.3.0 | **Declarado, não usado em `lib/`** (evolução futura) |
 
 Configuração gerada em `lib/firebase_options.dart` (FlutterFire CLI).

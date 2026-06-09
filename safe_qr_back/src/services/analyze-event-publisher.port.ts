@@ -3,6 +3,7 @@ import type { QrAnalyzeResultModel } from '../models/analyze-result.model.js';
 export type QrAnalyzedPublishInput = {
   correlationId: string;
   idUser: string | null;
+  rawContent: string;
   contentDigest: string;
   rawByteLength: number;
   model: QrAnalyzeResultModel;

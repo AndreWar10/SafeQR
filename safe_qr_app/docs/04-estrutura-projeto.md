@@ -8,11 +8,18 @@ lib/
 ├── firebase_options.dart              # Config FlutterFire
 │
 ├── app/
+│   ├── app_initializer.dart           # Bootstrap (Firebase, DI, identidade)
+│   ├── app_routes.dart                # Rotas nomeadas
 │   ├── safe_qr_root.dart              # MultiProvider + MaterialApp
 │   └── di/
 │       └── dependency_injection.dart  # Registro get_it
 │
 ├── core/
+│   ├── identity/
+│   │   ├── user_identity_repository.dart
+│   │   ├── firebase_anonymous_user_identity_repository.dart
+│   │   ├── user_identity_service.dart
+│   │   └── user_identity_exception.dart
 │   ├── config/
 │   │   ├── app_config.dart            # Leitura do .env
 │   │   ├── analyze_mode.dart          # enum local | remote

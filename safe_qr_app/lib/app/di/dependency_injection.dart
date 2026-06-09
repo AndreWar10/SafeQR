@@ -10,13 +10,17 @@ import '../../core/config/analyze_mode.dart';
 import '../../core/config/app_config.dart';
 import '../../core/constants/app_endpoints.dart';
 import '../../core/logging/app_debug_log.dart';
+import '../../core/identity/firebase_anonymous_user_identity_repository.dart';
+import '../../core/identity/user_identity_repository.dart';
 import '../../core/identity/user_identity_service.dart';
 import '../../core/database/app_database_bootstrapper.dart';
 import '../../core/network/app_network.dart';
+import '../../core/network/authenticated_app_network.dart';
 import '../../core/theme/app_theme_mode_controller.dart';
 import '../../features/qr_generator/domain/use_cases/validate_qr_payload.dart';
 import '../../features/qr_generator/presentation/view_models/qr_generator_view_model.dart';
 import '../../features/qr_history/data/repositories/history_repository_impl.dart';
+import '../../features/qr_history/data/repositories/remote_history_repository.dart';
 import '../../features/qr_history/domain/repositories/history_repository.dart';
 import '../../features/qr_history/domain/use_cases/add_history_item.dart';
 import '../../features/qr_history/domain/use_cases/clear_history.dart';
@@ -54,7 +58,6 @@ Future<void> configureDependencies({
   sl.registerSingleton<Database>(db);
 
   sl
-    ..registerLazySingleton<HistoryRepository>(() => HistoryRepositoryImpl(sl()))
     ..registerLazySingleton<AddHistoryItem>(() => AddHistoryItem(sl()))
     ..registerLazySingleton<LoadHistoryList>(() => LoadHistoryList(sl()))
     ..registerLazySingleton<DeleteHistoryItem>(() => DeleteHistoryItem(sl()))
@@ -68,7 +71,6 @@ Future<void> configureDependencies({
       receiveTimeout: appConfig.receiveTimeout,
       headers: <String, Object?>{
         d.Headers.acceptHeader: d.Headers.jsonContentType,
-        d.Headers.contentTypeHeader: d.Headers.jsonContentType,
       },
     ),
   );
@@ -77,7 +79,6 @@ Future<void> configureDependencies({
   );
   sl
     ..registerSingleton<d.Dio>(dio)
-    ..registerLazySingleton<AppNetwork>(() => DioAppNetwork(dio: sl()))
     ..registerLazySingleton<QrAnalyzeRepository>(
       () {
         final AppConfig cfg = sl<AppConfig>();
@@ -88,13 +89,27 @@ Future<void> configureDependencies({
       },
     )
     ..registerLazySingleton<AnalyzeQrCode>(() => AnalyzeQrCode(sl()))
+    ..registerLazySingleton<UserIdentityRepository>(() => FirebaseAnonymousUserIdentityRepository())
     ..registerLazySingleton<UserIdentityService>(() => UserIdentityService(sl()))
-    ..registerLazySingleton<QrReaderViewModel>(
-      () => QrReaderViewModel(
-        analyze: sl(),
-        addToHistory: sl(),
-        userIdentity: sl(),
+    ..registerLazySingleton<AppNetwork>(
+      () => AuthenticatedAppNetwork(
+        inner: DioAppNetwork(dio: sl()),
+        identity: sl(),
       ),
+    )
+    ..registerLazySingleton<RemoteHistoryRepository>(
+      () => RemoteHistoryRepository(sl()),
+    )
+    ..registerLazySingleton<HistoryRepository>(
+      () {
+        if (appConfig.analyzeMode != AnalyzeMode.remote) {
+          return HistoryRepositoryImpl(sl());
+        }
+        return sl<RemoteHistoryRepository>();
+      },
+    )
+    ..registerLazySingleton<QrReaderViewModel>(
+      () => QrReaderViewModel(analyze: sl()),
     )
     ..registerLazySingleton<QrGeneratorViewModel>(
       () => QrGeneratorViewModel(

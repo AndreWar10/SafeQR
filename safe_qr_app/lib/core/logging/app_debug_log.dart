@@ -9,6 +9,8 @@ import 'package:flutter/foundation.dart';
 abstract final class AppDebugLog {
   static const String _net = 'SafeQR.Net';
   static const String _reader = 'SafeQR.Reader';
+  static const String _identity = 'SafeQR.Identity';
+  static const String _history = 'SafeQR.History';
 
   static void net(String message, [Object? error, StackTrace? stackTrace]) {
     developer.log(message, name: _net, error: error, stackTrace: stackTrace);
@@ -23,5 +25,20 @@ abstract final class AppDebugLog {
       return;
     }
     developer.log(message, name: _reader);
+  }
+
+  static void identity(String message, [Object? error, StackTrace? stackTrace]) {
+    developer.log(message, name: _identity, error: error, stackTrace: stackTrace);
+  }
+
+  static void identityVerbose(String message) {
+    if (kReleaseMode) {
+      return;
+    }
+    developer.log(message, name: _identity);
+  }
+
+  static void history(String message, [Object? error, StackTrace? stackTrace]) {
+    developer.log(message, name: _history, error: error, stackTrace: stackTrace);
   }
 }

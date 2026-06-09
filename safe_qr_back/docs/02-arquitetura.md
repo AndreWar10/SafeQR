@@ -87,10 +87,12 @@ sequenceDiagram
   participant C as Cliente (Flutter)
   participant F as Fastify
   participant Ctrl as QrAnalyzeController
+  participant Auth as FirebaseUserIdentityService
   participant Svc as QrAnalyzeService
   participant FS as Firestore (opcional)
+  participant PS as Pub/Sub (opcional)
 
-  C->>F: POST /v1/qr/analyze { rawContent, client? }
+  C->>F: POST /v1/qr/analyze + Bearer JWT
   F->>Ctrl: postAnalyze(req, reply)
   Ctrl->>Ctrl: Zod safeParse(body)
   alt corpo inválido
@@ -100,7 +102,12 @@ sequenceDiagram
   alt payload grande
     Ctrl-->>C: 413 PAYLOAD_TOO_LARGE
   end
-  Ctrl->>Ctrl: log info (byteLen, digest SHA-256[:16])
+  Ctrl->>Auth: resolveBearerUid(req)
+  alt Bearer ausente ou JWT inválido
+    Ctrl-->>C: 401 UNAUTHORIZED
+  end
+  Auth-->>Ctrl: idUser = decoded.uid
+  Ctrl->>Ctrl: log info (byteLen, digest SHA-256[:16], idUser)
   Ctrl->>Svc: evaluateAsync(rawContent)
   Svc->>Svc: trim, classificar tipo (wifi/vcard/url/text)
   alt URL http(s)
@@ -116,6 +123,7 @@ sequenceDiagram
   end
   Ctrl->>Ctrl: toQrAnalyzeResponseJson(model)
   Ctrl-->>C: 200 { requestId, verdict, safeToOpen, reasons, parsed }
+  Ctrl--)PS: publishQrAnalyzed (fire-and-forget, historyItem)
 ```
 
 ## Injeção de dependências

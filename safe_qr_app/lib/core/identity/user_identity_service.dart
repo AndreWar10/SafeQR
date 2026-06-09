@@ -1,22 +1,19 @@
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:uuid/uuid.dart';
+import 'user_identity_repository.dart';
 
-/// Pseudónimo local estável enviado à API como `client.idUser`.
+/// Caso de uso: UID + token Firebase para chamadas autenticadas à API.
 final class UserIdentityService {
-  UserIdentityService(this._prefs, {Uuid? uuid}) : _uuid = uuid ?? const Uuid();
+  const UserIdentityService(this._repository);
 
-  static const String persistenceKey = 'safe_qr_id_user';
+  final UserIdentityRepository _repository;
 
-  final SharedPreferences _prefs;
-  final Uuid _uuid;
+  Future<String> getOrCreateIdUser() => _repository.getOrCreateIdUser();
 
-  Future<String> getOrCreateIdUser() async {
-    final String? existing = _prefs.getString(persistenceKey);
-    if (existing != null && existing.isNotEmpty) {
-      return existing;
-    }
-    final String created = 'usr_${_uuid.v4()}';
-    await _prefs.setString(persistenceKey, created);
-    return created;
+  Future<String> getIdToken({bool forceRefresh = false}) =>
+      _repository.getIdToken(forceRefresh: forceRefresh);
+
+  /// Cabeçalhos `Authorization: Bearer <Firebase ID Token>` em todos os pedidos ao back.
+  Future<Map<String, String>> authorizationHeaders({bool forceRefresh = false}) async {
+    final String token = await getIdToken(forceRefresh: forceRefresh);
+    return <String, String>{'Authorization': 'Bearer $token'};
   }
 }

@@ -4,7 +4,8 @@
 
 ## O que o app envia
 
-- **Modo `ANALYZE_MODE=remote`:** o conteúdo bruto lido do QR (string) é enviado no corpo de `POST /v1/qr/analyze`, com metadados mínimos de cliente (`appVersion`, `plataforma`) — conforme o contrato do planeamento.
+- **Modo `ANALYZE_MODE=remote`:** o conteúdo bruto lido do QR (string) é enviado no corpo de `POST /v1/qr/analyze`, com metadados mínimos de cliente (`appVersion`, `plataforma`, `idUser`) — conforme o contrato do planeamento.
+- **`idUser`:** UID de **Firebase Anonymous Auth** (pseudónimo técnico por instalação; sem e-mail nem palavra-passe). Ver [17-identidade-firebase-anonymous.md](./17-identidade-firebase-anonymous.md).
 - **Modo `ANALYZE_MODE=local`:** **nada** do QR é enviado a um servidor. A análise é heurística no aparelho (limitações descritas na app).
 
 ## O que fica no aparelho
@@ -13,7 +14,7 @@
 
 ## O que o app não inclui (S1)
 
-- Conta de utilizador, login, ou armazenamento de dados sensíveis fora do que o utilizador vê (histórico local).
+- Conta com e-mail/palavra-passe ou dados sensíveis fora do que o utilizador vê (histórico local). *Sessão anónima Firebase não é “login” visível ao utilizador.*
 
 ## Evolução (LGPD / remoto)
 

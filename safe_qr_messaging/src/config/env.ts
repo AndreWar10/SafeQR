@@ -10,11 +10,15 @@ const envSchema = z.object({
   GCP_PROJECT_ID: z.string().min(1),
   GOOGLE_APPLICATION_CREDENTIALS: z.string().optional(),
   PUBSUB_SUBSCRIPTION: z.string().default('safe-qr-analyze-events-sub'),
+  PUBSUB_SUBSCRIPTION_AUDIT: z.string().optional(),
+  PUBSUB_SUBSCRIPTION_HISTORY: z.string().optional(),
   CONSUMER_ENABLED: boolFromEnv.default('true'),
   CONSUMER_MAX_MESSAGES: z.coerce.number().int().positive().max(100).default(10),
   CONSUMER_ACK_DEADLINE_SEC: z.coerce.number().int().positive().max(600).default(60),
   FIRESTORE_ENABLED: boolFromEnv.default('true'),
   FIRESTORE_COLLECTION: z.string().min(1).default('scan_events'),
+  FIRESTORE_HISTORY_COLLECTION: z.string().min(1).default('history'),
+  FIRESTORE_HISTORY_ITEMS_SUBCOLLECTION: z.string().min(1).default('items'),
   FIREBASE_GOOGLE_APPLICATION_CREDENTIALS: z.string().optional(),
   FIREBASE_SERVICE_ACCOUNT_JSON: z.string().optional(),
 });
@@ -35,4 +39,12 @@ export function resolveFirebaseKeyFilePath(env: Env): string | undefined {
     return firebasePath;
   }
   return env.GOOGLE_APPLICATION_CREDENTIALS?.trim() || undefined;
+}
+
+export function resolveAuditSubscription(env: Env): string {
+  return env.PUBSUB_SUBSCRIPTION_AUDIT?.trim() || env.PUBSUB_SUBSCRIPTION;
+}
+
+export function resolveHistorySubscription(env: Env): string {
+  return env.PUBSUB_SUBSCRIPTION_HISTORY?.trim() || 'safe-qr-analyze-events-sub-history';
 }

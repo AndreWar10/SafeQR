@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Expõe [ThemeMode] (claro/escuro) e persiste a escolha.
+/// Expõe [ThemeMode] (claro ou escuro) e persiste a escolha.
 final class AppThemeModeController extends ChangeNotifier {
   AppThemeModeController({required this.prefs, required this.persistenceKey}) {
     _readFromStorage();
@@ -10,48 +10,39 @@ final class AppThemeModeController extends ChangeNotifier {
   final SharedPreferences prefs;
   final String persistenceKey;
 
-  ThemeMode _mode = ThemeMode.system;
+  ThemeMode _mode = ThemeMode.dark;
 
   ThemeMode get mode => _mode;
 
   void _readFromStorage() {
-    final raw = prefs.getString(persistenceKey);
-    if (raw == 'dark') {
-      _mode = ThemeMode.dark;
-    } else if (raw == 'light') {
+    final String? raw = prefs.getString(persistenceKey);
+    if (raw == 'light') {
       _mode = ThemeMode.light;
-    } else {
-      _mode = ThemeMode.system;
+      return;
     }
+    // Primeira abertura, valor antigo `system` ou desconhecido → escuro.
+    _mode = ThemeMode.dark;
   }
 
   Future<void> setLight() => _set(ThemeMode.light);
 
   Future<void> setDark() => _set(ThemeMode.dark);
 
-  Future<void> setSystem() => _set(ThemeMode.system);
-
   Future<void> _set(ThemeMode m) async {
     if (_mode == m) {
       return;
     }
     _mode = m;
-    final v = switch (m) {
-      ThemeMode.dark => 'dark',
-      ThemeMode.light => 'light',
-      ThemeMode.system => 'system',
-    };
+    final String v = m == ThemeMode.dark ? 'dark' : 'light';
     await prefs.setString(persistenceKey, v);
     notifyListeners();
   }
 
   Future<void> cycle() async {
-    if (_mode == ThemeMode.system) {
-      await setLight();
-    } else if (_mode == ThemeMode.light) {
+    if (_mode == ThemeMode.light) {
       await setDark();
     } else {
-      await setSystem();
+      await setLight();
     }
   }
 }

@@ -5,13 +5,18 @@
 **Comando:** `npm test`  
 **Framework:** Vitest 3.x  
 **Ambiente:** Node (sem browser)  
-**Total:** 12 testes em 4 arquivos — **todos passando**
+**Total:** 38 testes em 9 arquivos — **todos passando**
 
 ```
 ✓ test/suspicious-hosts-match.test.ts (3)
+✓ test/derive-reason-codes.test.ts (2)
+✓ test/build-qr-analyzed-history-item.test.ts (2)
 ✓ test/qr-analyze-clones.test.ts (2)
+✓ test/pubsub-analyze-event-publisher.test.ts (2)
+✓ test/qr-analyze-publish.test.ts (3)
 ✓ test/health.test.ts (2)
-✓ test/qr-analyze.test.ts (5)
+✓ test/qr-analyze.test.ts (7)
+✓ test/history.test.ts (15)
 ```
 
 ### Estrutura
@@ -20,8 +25,12 @@
 test/
 ├── setup.ts                      # createTestApp() — Fastify injetado
 ├── health.test.ts                # GET /v1/health, GET /health
-├── qr-analyze.test.ts            # Contrato POST /v1/qr/analyze
+├── qr-analyze.test.ts            # Contrato POST /v1/qr/analyze (+ auth)
+├── qr-analyze-publish.test.ts    # Pub/Sub idUser + 401 sem Bearer
 ├── qr-analyze-clones.test.ts     # Service + mock blocklist
+├── pubsub-analyze-event-publisher.test.ts
+├── build-qr-analyzed-history-item.test.ts
+├── history.test.ts               # CRUD /v1/history + JWT
 └── suspicious-hosts-match.test.ts # Funções puras de match
 ```
 
@@ -48,10 +57,16 @@ Usa `app.inject()` do Fastify — requisições in-process sem abrir porta TCP:
 const res = await app.inject({
   method: 'POST',
   url: '/v1/qr/analyze',
+  headers: {
+    'content-type': 'application/json',
+    authorization: 'Bearer test:Vb3ubOjy9RYt9AKpx3VzunBirEc2',
+  },
   payload: { rawContent: 'https://example.com/path' },
 });
 expect(res.statusCode).toBe(200);
 ```
+
+Em `NODE_ENV=test`, o prefixo `Bearer test:<uid>` simula auth sem Firebase real (mesmo mecanismo do histórico).
 
 ## Cobertura por área
 
@@ -61,9 +76,13 @@ expect(res.statusCode).toBe(200);
 | Análise HTTPS safe | ✅ | `qr-analyze.test.ts` |
 | Encurtador suspicious | ✅ | `qr-analyze.test.ts` |
 | Esquema unsafe | ✅ | `qr-analyze.test.ts` |
+| 401 sem Bearer (analyze) | ✅ | `qr-analyze.test.ts` |
+| 401 só client.idUser (analyze) | ✅ | `qr-analyze.test.ts` |
 | Validação 400 | ✅ | `qr-analyze.test.ts` |
 | Payload 413 | ✅ | `qr-analyze.test.ts` |
+| Pub/Sub idUser do Bearer | ✅ | `qr-analyze-publish.test.ts` |
 | Blocklist mock | ✅ | `qr-analyze-clones.test.ts` |
+| History CRUD + JWT auth | ✅ | `history.test.ts` (15 casos) |
 | Normalização host | ✅ | `suspicious-hosts-match.test.ts` |
 | Subdomínio blocklist | ✅ | `suspicious-hosts-match.test.ts` |
 | Firestore real | ❌ | Requer credenciais |

@@ -8,14 +8,17 @@ O backend foi projetado como parceiro do app **`safe_qr_app`**. O contrato HTTP 
 sequenceDiagram
   participant UI as ScannerPage (Flutter)
   participant UC as AnalyzeQrUseCase
+  participant ID as UserIdentityRepository
   participant REPO as RemoteQrAnalyzeRepository
   participant NET as AppNetwork (Dio)
   participant API as safe-qr-back
 
   UI->>UC: analyze(rawContent)
   UC->>REPO: analyze(rawContent)
-  REPO->>NET: POST /v1/qr/analyze
-  NET->>API: JSON body
+  REPO->>ID: getIdToken()
+  ID-->>REPO: Firebase JWT
+  REPO->>NET: POST /v1/qr/analyze + Bearer
+  NET->>API: JSON body + Authorization
   API-->>NET: 200 + verdict
   NET-->>REPO: Map JSON
   REPO-->>UC: QrAnalysisResult (domain)
@@ -45,13 +48,31 @@ abstract final class AppEndpoints {
 }
 ```
 
+## Autenticação (obrigatória)
+
+`POST /v1/qr/analyze` exige o **mesmo Bearer** que `/v1/history`:
+
+```
+Authorization: Bearer <Firebase ID Token>
+```
+
+| Fonte no app | Uso |
+|--------------|-----|
+| `UserIdentityRepository.getIdToken()` | JWT para analyze e history |
+| `client.idUser` no body | ❌ não autentica (metadado opcional) |
+
+Sem Bearer a API retorna **`401 UNAUTHORIZED`**.
+
 ## Request enviado pelo app
 
-Implementação: `RemoteQrAnalyzeRepository`
+Implementação: `RemoteQrAnalyzeRepository` (deve enviar Bearer — igual ao repositório de histórico).
 
 ```dart
+final token = await _identity.getIdToken();
+
 await _net.post(
   AppEndpoints.qrAnalyze,
+  headers: {'Authorization': 'Bearer $token'},
   body: {
     'rawContent': rawContent,
     'client': {
@@ -109,6 +130,7 @@ Se falhar, o app ainda inicia mas loga aviso — útil para debug de rede.
 | Status API | Comportamento esperado no app |
 |------------|-------------------------------|
 | `200` | Exibe resultado |
+| `401` | Token ausente/inválido — renovar sessão Firebase |
 | `400` | Mensagem de payload inválido |
 | `413` | QR muito grande |
 | `500` | Erro genérico |
@@ -118,18 +140,20 @@ Implementado via camada `AppNetwork` (Dio) com timeouts configuráveis.
 
 ## Histórico
 
-O histórico de scans fica em **SQLite no dispositivo** (`sqflite`), não no backend. Após análise remota bem-sucedida, o app grava localmente:
+| Camada | Onde | Como |
+|--------|------|------|
+| Local | SQLite no dispositivo (`sqflite`) | App grava após scan |
+| Nuvem | Firestore `history/{uid}/items/{id}` | Pub/Sub `qr.analyzed` após analyze 200 + Bearer |
 
-- Conteúdo do QR
-- Veredito
-- Timestamp
+CRUD direto na nuvem: `GET/POST/DELETE /v1/history` (também exige Bearer). Ver [12-api-historico.md](./12-api-historico.md) e [13-pubsub-qr-analyzed.md](./13-pubsub-qr-analyzed.md).
 
 ## Firebase — papéis distintos
 
 | Componente | SDK | Papel |
 |------------|-----|-------|
-| App Flutter | `firebase_core`, `cloud_firestore` | Inicialização; evolução futura |
-| Backend | `firebase-admin` | Leitura da blocklist `suspicious_hosts/clones` |
+| App Flutter | `firebase_auth` | `getIdToken()` → Bearer em analyze e history |
+| App Flutter | `firebase_core`, `cloud_firestore` | Inicialização |
+| Backend | `firebase-admin` | `verifyIdToken`, blocklist `suspicious_hosts/clones`, histórico Firestore |
 
 Ambos usam o **mesmo projeto Firebase**, mas com responsabilidades diferentes.
 
@@ -139,7 +163,8 @@ Ambos usam o **mesmo projeto Firebase**, mas com responsabilidades diferentes.
 2. Descobrir IP da máquina: `ipconfig` (Windows) ou `ip a`
 3. Configurar app: `API_BASE_URL=http://<IP>:3000`, `ANALYZE_MODE=remote`
 4. Rebuild do app Flutter
-5. Escanear QR e verificar log do backend (`event: qr_analyze`)
+5. Garantir login anônimo Firebase no app (token válido)
+6. Escanear QR e verificar log do backend (`event: qr_analyze` com `idUser`)
 
 ## Compatibilidade de versões
 

@@ -3,13 +3,22 @@ import { describe, expect, it } from 'vitest';
 import { loadEnv } from '../src/config/env.js';
 import { createTestApp } from './setup.js';
 
+const USER_A = 'Vb3ubOjy9RYt9AKpx3VzunBirEc2';
+
+function authHeader(uid = USER_A) {
+  return {
+    'content-type': 'application/json',
+    authorization: `Bearer test:${uid}`,
+  };
+}
+
 describe('POST /v1/qr/analyze', () => {
   it('https simples → safe', async () => {
     const app = await createTestApp();
     const res = await app.inject({
       method: 'POST',
       url: '/v1/qr/analyze',
-      headers: { 'content-type': 'application/json' },
+      headers: authHeader(),
       payload: {
         rawContent: 'https://example.com/path',
         client: { appVersion: '1.0.0', platform: 'android' },
@@ -35,7 +44,7 @@ describe('POST /v1/qr/analyze', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/v1/qr/analyze',
-      headers: { 'content-type': 'application/json' },
+      headers: authHeader(),
       payload: { rawContent: 'https://bit.ly/abc123' },
     });
     expect(res.statusCode).toBe(200);
@@ -50,6 +59,7 @@ describe('POST /v1/qr/analyze', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/v1/qr/analyze',
+      headers: authHeader(),
       payload: { rawContent: 'javascript:alert(1)' },
     });
     expect(res.statusCode).toBe(200);
@@ -58,11 +68,39 @@ describe('POST /v1/qr/analyze', () => {
     await app.close();
   });
 
+  it('401 sem Bearer token', async () => {
+    const app = await createTestApp();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/qr/analyze',
+      headers: { 'content-type': 'application/json' },
+      payload: { rawContent: 'https://example.com' },
+    });
+    expect(res.statusCode).toBe(401);
+    await app.close();
+  });
+
+  it('401 quando só client.idUser sem Bearer', async () => {
+    const app = await createTestApp();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/qr/analyze',
+      headers: { 'content-type': 'application/json' },
+      payload: {
+        rawContent: 'https://example.com',
+        client: { idUser: USER_A },
+      },
+    });
+    expect(res.statusCode).toBe(401);
+    await app.close();
+  });
+
   it('400 quando rawContent vazio', async () => {
     const app = await createTestApp();
     const res = await app.inject({
       method: 'POST',
       url: '/v1/qr/analyze',
+      headers: authHeader(),
       payload: { rawContent: '' },
     });
     expect(res.statusCode).toBe(400);
@@ -84,6 +122,7 @@ describe('POST /v1/qr/analyze', () => {
     const res = await tiny.inject({
       method: 'POST',
       url: '/v1/qr/analyze',
+      headers: authHeader(),
       payload: { rawContent: 'x'.repeat(100) },
     });
     expect(res.statusCode).toBe(413);

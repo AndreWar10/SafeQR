@@ -3,4 +3,7 @@ abstract final class AppEndpoints {
   static const String v1Root = '/v1';
   static const String health = '$v1Root/health';
   static const String qrAnalyze = '$v1Root/qr/analyze';
+  static const String history = '$v1Root/history';
+
+  static String historyItem(String id) => '$history/$id';
 }
