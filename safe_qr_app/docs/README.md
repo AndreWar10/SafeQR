@@ -3,7 +3,7 @@
 Documentação técnica do aplicativo mobile **Safe QR** (`safe_qr_app`).
 
 **Versão do app:** 1.0.0+1  
-**Última atualização:** junho de 2026
+**Última atualização:** junho de 2026 — Bearer JWT via `AuthenticatedAppNetwork` em modo remote
 
 ---
 
@@ -18,7 +18,7 @@ Documentação técnica do aplicativo mobile **Safe QR** (`safe_qr_app`).
 | 05 | [Casos de uso](./05-casos-de-uso.md) | Fluxos principais, extensões, diagramas UML |
 | 06 | [Features](./06-features.md) | Splash, Shell, Scanner, Gerador, Histórico |
 | 07 | [API e integração](./07-api-integracao.md) | Endpoints, contratos JSON, modos de análise |
-| 08 | [Dados e persistência](./08-dados-persistencia.md) | Entidades, SQLite, SharedPreferences |
+| 08 | [Dados e persistência](./08-dados-persistencia.md) | Entidades, SQLite (local) / Firestore via API (remote) |
 | 09 | [Navegação e UI](./09-navegacao-ui.md) | Rotas, telas, tema, componentes compartilhados |
 | 10 | [Configuração e ambiente](./10-configuracao-ambiente.md) | `.env`, build, execução local |
 | 11 | [Plataformas](./11-plataformas-android-ios.md) | Permissões, manifestos, Firebase |
@@ -27,7 +27,7 @@ Documentação técnica do aplicativo mobile **Safe QR** (`safe_qr_app`).
 | 14 | [Desenvolvimento](./14-desenvolvimento.md) | Setup, debug, logs, convenções de código |
 | 15 | [Roadmap e gaps](./15-roadmap-gaps.md) | Evolução planejada, débitos técnicos |
 | 16 | [Requisitos app — backlog](./16-requisitos-app-backlog.md) | Conformidade RF-M/RNF e plano de execução (escopo mobile) |
-| 17 | [Identidade Firebase Anonymous](./17-identidade-firebase-anonymous.md) | `idUser`, setup manual, arquitetura |
+| 17 | [Identidade Firebase Anonymous](./17-identidade-firebase-anonymous.md) | Bearer JWT, setup manual, arquitetura |
 
 ---
 
@@ -47,4 +47,4 @@ Documentação técnica do aplicativo mobile **Safe QR** (`safe_qr_app`).
 
 ## Resumo em uma frase
 
-> App Flutter que **analisa QR codes antes de abrir**, com leitor de câmera, gerador de QR, histórico local e análise heurística on-device ou via API remota (`safe_qr_back`).
+> App Flutter que **analisa QR codes antes de abrir**, com leitor de câmera, gerador de QR, histórico (SQLite local ou remoto via API + Pub/Sub) e análise heurística on-device ou via `safe_qr_back` com Bearer JWT.

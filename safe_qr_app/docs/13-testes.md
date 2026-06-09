@@ -50,6 +50,7 @@ flutter analyze
 | Arquivo | O que testa |
 |---------|-------------|
 | `test/features/qr_history/history_data_mapper_test.dart` | Mapeamento entidade ↔ row SQLite |
+| `test/features/qr_history/history_api_mapper_test.dart` | Mapeamento entidade ↔ JSON `/v1/history` |
 
 ### Splash e Shell
 

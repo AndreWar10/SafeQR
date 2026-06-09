@@ -92,7 +92,7 @@ Logs estruturados incluem **tamanho em bytes** e um **digest curto (SHA-256 trun
 
 ## Integração com o app Flutter
 
-Aponte a base URL do cliente HTTP para `http://<host>:<PORT>` (ou HTTPS atrás de proxy) e mantenha o path **`/v1/qr/analyze`** conforme `AppEndpoints` no mobile. O app deve enviar **`Authorization: Bearer <getIdToken()>`** em analyze e history.
+Aponte a base URL do cliente HTTP para `http://<host>:<PORT>` (ou HTTPS atrás de proxy) e mantenha os paths conforme `AppEndpoints` no mobile. O app injeta **`Authorization: Bearer <getIdToken()>`** via `AuthenticatedAppNetwork` em analyze e history. Ver [`docs/10-integracao-mobile.md`](docs/10-integracao-mobile.md).
 
 ## Licença
 

@@ -11,11 +11,14 @@ sequenceDiagram
   participant FS as Firestore
 
   Note over App: ANALYZE_MODE=remote
-  App->>API: GET /v1/health (debug bootstrap)
-  App->>API: POST /v1/qr/analyze
+  App->>API: GET /v1/health (debug bootstrap, Bearer)
+  App->>API: POST /v1/qr/analyze (Bearer)
   API->>API: QrAnalyzeService (heurística)
   API->>FS: suspicious_hosts (blocklist)
   API-->>App: JSON verdict
+  Note over API,FS: Histórico do scan via Pub/Sub + consume:history
+  App->>API: GET /v1/history (Bearer)
+  API-->>App: lista de itens
 ```
 
 ## Configuração
@@ -49,6 +52,9 @@ Constantes Dart: `lib/core/constants/app_endpoints.dart`, `app_env_keys.dart`
 |--------|------|------------|
 | `GET` | `/v1/health` | Probe de debug no bootstrap (modo remote) |
 | `POST` | `/v1/qr/analyze` | Análise de conteúdo QR |
+| `GET` | `/v1/history` | Listar histórico (modo remote) |
+| `DELETE` | `/v1/history/{id}` | Apagar item(s) selecionado(s) |
+| `POST` | `/v1/history` | QR gerado — botão “Salvar no histórico” |
 
 Definição:
 
@@ -57,6 +63,8 @@ abstract final class AppEndpoints {
   static const String v1Root = '/v1';
   static const String health = '$v1Root/health';
   static const String qrAnalyze = '$v1Root/qr/analyze';
+  static const String history = '$v1Root/history';
+  static String historyItem(String id) => '$history/$id';
 }
 ```
 
@@ -70,7 +78,10 @@ abstract final class AppEndpoints {
 GET /v1/health HTTP/1.1
 Host: <API_BASE_URL>
 Accept: application/json
+Authorization: Bearer <Firebase ID Token>
 ```
+
+Bearer injetado por `AuthenticatedAppNetwork` em **todos** os pedidos ao back.
 
 ### Response `200`
 
@@ -99,7 +110,7 @@ Authorization: Bearer <Firebase ID Token>
 Content-Type: application/json
 ```
 
-Token via `UserIdentityService.authorizationHeaders()`.
+Bearer via `AuthenticatedAppNetwork` → `UserIdentityService.getIdToken()`.
 
 **Body:**
 
@@ -108,8 +119,7 @@ Token via `UserIdentityService.authorizationHeaders()`.
   "rawContent": "https://exemplo.com/pagamento",
   "client": {
     "appVersion": "1.0.0",
-    "platform": "android",
-    "idUser": "K7xY2zQ1aBcDeFgHiJkLmNoPqRs"
+    "platform": "android"
   }
 }
 ```
@@ -119,7 +129,8 @@ Token via `UserIdentityService.authorizationHeaders()`.
 | `rawContent` | Conteúdo escaneado (clip 2000 chars) |
 | `client.appVersion` | `AppBuildInfo.versionLabel` |
 | `client.platform` | `android`, `ios`, `web`, etc. |
-| `client.idUser` | Firebase Anonymous UID via `UserIdentityService` |
+
+O UID do utilizador vem **só do JWT** (`Authorization: Bearer …`). Não enviar UID no body.
 
 Detalhes de identidade: [17-identidade-firebase-anonymous.md](./17-identidade-firebase-anonymous.md).
 
@@ -162,6 +173,7 @@ Detalhes de identidade: [17-identidade-firebase-anonymous.md](./17-identidade-fi
 | Status | Corpo (exemplo) | Tratamento no app |
 |--------|-----------------|-------------------|
 | `400` | `VALIDATION_ERROR` | `AppHttpException` → mensagem de rede |
+| `401` | `UNAUTHORIZED` | Token ausente/inválido → `AppStrings.identityError` |
 | `413` | `PAYLOAD_TOO_LARGE` | `AppHttpException` |
 | `500` | `INTERNAL_ERROR` | `AppHttpException` |
 | Timeout | — | `AppStrings.timeoutError` (status 408 mapeado) |
@@ -194,18 +206,24 @@ Camada: `DioAppNetwork` → exceções → `QrReaderViewModel`
 
 ```dart
 abstract class AppNetwork {
-  Future<Map<String, dynamic>> get(String path, {Map<String, String>? headers});
-  Future<Map<String, dynamic>> post(String path, {
-    required Map<String, dynamic> body,
-    Map<String, String>? headers,
-  });
+  Future<Map<String, dynamic>> get(...);
+  Future<Map<String, dynamic>> post(...);
+  Future<void> delete(...);
 }
 ```
 
-Implementação: `DioAppNetwork` com:
+Implementação em camadas:
+
+| Classe | Papel |
+|--------|-------|
+| `DioAppNetwork` | Dio + mapeamento de erros |
+| `AuthenticatedAppNetwork` | Injeta `Authorization: Bearer <token>` em todos os pedidos |
+
+Configuração Dio:
 
 - `baseUrl` = `AppConfig.apiBaseUrl`
-- Headers JSON padrão
+- `Accept: application/json` global
+- `Content-Type: application/json` **apenas em POST** (GET/DELETE sem body — evita `FST_ERR_CTP_EMPTY_JSON_BODY` no Fastify)
 - Timeouts de `AppConfig`
 
 ---
@@ -214,12 +232,13 @@ Implementação: `DioAppNetwork` com:
 
 | Operação | Quem faz |
 |----------|----------|
-| Scan → analyze | App (`POST /v1/qr/analyze` + Bearer) |
-| Gravar scan no histórico | `safe_qr_messaging` (`consume:history` → Pub/Sub → Firestore) |
-| Listar histórico | App (`GET /v1/history` + Bearer) |
-| QR gerado | App (`POST /v1/history` + Bearer) |
+| Scan → analyze | App (`POST /v1/qr/analyze` + Bearer) — **sem** gravar histórico no app |
+| Gravar scan no histórico | Back + `safe_qr_messaging` (Pub/Sub → Firestore) |
+| Listar histórico | App (`GET /v1/history` + Bearer) via `RemoteHistoryRepository` |
+| Apagar item(ns) | App (`DELETE /v1/history/{id}` + Bearer) |
+| QR gerado | App (`POST /v1/history` + Bearer) ao salvar no gerador |
 
-Modo `ANALYZE_MODE=local`: histórico continua em **SQLite** no aparelho.
+Modo `ANALYZE_MODE=local`: histórico em **SQLite** (`HistoryRepositoryImpl`).
 
 Ver: [08-dados-persistencia.md](./08-dados-persistencia.md), [safe_qr_messaging/docs/02-FANOUT-HISTORICO-AUDIT.md](../../safe_qr_messaging/docs/02-FANOUT-HISTORICO-AUDIT.md).
 

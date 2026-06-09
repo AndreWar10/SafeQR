@@ -33,7 +33,7 @@ flowchart LR
 
 **Ator:** Usuário final  
 **Pré-condição:** App aberto, permissão de câmera concedida (ou solicitada pelo SO)  
-**Pós-condição:** Resultado exibido; leitura salva no histórico
+**Pós-condição:** Resultado exibido; em modo remote o histórico é gravado pelo back (não pelo app)
 
 ### Fluxo principal
 
@@ -41,7 +41,7 @@ flowchart LR
 2. App detecta código via `mobile_scanner`
 3. Overlay fullscreen **"Analisando QR Code"** é exibido
 4. `QrReaderViewModel.analyzeDecoded()` executa análise
-5. Resultado é gravado no histórico SQLite
+5. Em `remote`: só analyze (histórico gravado pelo back); em `local`: analyze local sem gravar scan no histórico
 6. App navega para `ScanResultPage` com veredito e razões
 7. Usuário escolhe: **Abrir destino** (se URL e `safeToOpen`), **Copiar**, ou **Voltar**
 
@@ -123,13 +123,13 @@ flowchart LR
 **Fluxo:**
 
 1. Usuário abre aba **Histórico**
-2. `QrHistoryViewModel.load()` busca itens do SQLite (mais recentes primeiro)
+2. `QrHistoryViewModel.load()` — `GET /v1/history` (remote) ou SQLite (local)
 3. Lista exibe cards com tipo, preview do conteúdo, data, veredito (se scan)
-4. Pull-to-refresh recarrega
+4. Pull-to-refresh recarrega da mesma fonte
 
 ### Detalhe do item
 
-- Toque no card → `showModalBottomSheet` com conteúdo completo e razões
+- **Toque** no card → `showModalBottomSheet` com conteúdo completo e razões
 
 ---
 
@@ -137,8 +137,9 @@ flowchart LR
 
 | Ação | Método | Confirmação |
 |------|--------|-------------|
-| Apagar item | Swipe-to-delete → `DeleteHistoryItem` | Não |
-| Limpar tudo | Botão → `ClearHistory` | Dialog de confirmação |
+| Selecionar | Long press no card | Não |
+| Apagar um | Swipe-to-delete (sem seleção ativa) | Não |
+| Apagar selecionados | Barra inferior → `removeMany` | Dialog de confirmação |
 
 ---
 
@@ -146,9 +147,9 @@ flowchart LR
 
 **Local:** AppBar do shell (ícone de tema)
 
-Ciclo: **Sistema → Claro → Escuro → Sistema**
+Alternância: **Escuro ↔ Claro**. Padrão primeira vez: escuro.
 
-Persistido em `SharedPreferences` via `AppThemeModeController`.
+Persistido em `SharedPreferences` via `AppThemeModeController` (`light` / `dark`).
 
 ---
 
@@ -157,7 +158,7 @@ Persistido em `SharedPreferences` via `AppThemeModeController`.
 1. `SplashPage` exibe identidade visual (escudo, tagline)
 2. Timer de **1,4 s**
 3. `pushReplacement` para `MainShellPage`
-4. Sem autenticação ou carregamento de dados remoto
+4. Bootstrap: Firebase + identidade anónima + token (modo remote); sem ecrã de login
 
 ---
 

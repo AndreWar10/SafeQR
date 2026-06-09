@@ -423,12 +423,12 @@ CONSUMER_MAX_MESSAGES=10
 CONSUMER_ACK_DEADLINE_SEC=60
 ```
 
-### 8.3 `safe_qr_app/assets/.env` (idUser — sem Pub/Sub direto)
+### 8.3 `safe_qr_app/assets/.env` (sem Pub/Sub direto)
 
 ```env
 API_BASE_URL=http://10.0.2.2:3000
 ANALYZE_MODE=remote
-# idUser gerado no app — ver §11
+# Identidade: Firebase Anonymous Auth → Bearer JWT (AuthenticatedAppNetwork)
 ```
 
 ---
@@ -730,9 +730,12 @@ npm install @google-cloud/pubsub
 
 ## 14. Integração em `safe_qr_app` (origem do idUser)
 
-- `UserIdentityService` → Firebase Anonymous Auth
-- `RemoteQrAnalyzeRepository` deve enviar `Authorization: Bearer` (ver `07-api-integracao.md`)
+- `UserIdentityService` → Firebase Anonymous Auth (`signInAnonymously` no bootstrap)
+- `AuthenticatedAppNetwork` injeta `Authorization: Bearer` em **todos** os pedidos (analyze, history, health)
+- `RemoteQrAnalyzeRepository` / `RemoteHistoryRepository` usam `AppNetwork` — **sem** header manual
 - Histórico remoto: `GET /v1/history` — scans gravados pelo `consume:history`, não pelo app
+
+Ver: `safe_qr_app/docs/07-api-integracao.md`, `17-identidade-firebase-anonymous.md`
 
 ---
 
@@ -750,8 +753,8 @@ npm install @google-cloud/pubsub
 ### 15.2 Algoritmo (`consume-history.ts` / `consume-audit.ts`)
 
 ```
-1. loadEnv()
-2. init PubSub subscription
+1. loadEnv() + init Firestore (FIREBASE_GOOGLE_APPLICATION_CREDENTIALS)
+2. init PubSub subscription (PUBSUB_SUBSCRIPTION_HISTORY ou _AUDIT)
 3. processedIds = new Set<string>()  // dedupe sessão
 4. subscription.on('message', async (message) => {
 5.   try {
@@ -762,15 +765,19 @@ npm install @google-cloud/pubsub
 10.       logger.info({ eventId: envelope.eventId }, 'duplicate event — ack')
 11.       message.ack(); return
 12.     }
-13.     logger.info({ event: 'qr_analyzed_consumed', ...envelope }, 'Evento consumido')
-14.     processedIds.add(envelope.eventId)
-15.     message.ack()
-16.   } catch (err) {
-17.     logger.error({ err, messageId: message.id })
-18.     message.nack()
-19.   }
-20. })
-21. SIGINT → subscription.close()
+13.     // Handler específico:
+14.     //   history → QrAnalyzedHistoryHandler → history/{idUser}/items/{eventId}
+15.     //   audit   → QrAnalyzedAuditHandler   → scan_events/{eventId}
+16.     await handler.handle(envelope)
+17.     logger.info({ event: 'qr_analyzed_consumed', eventId, idUser, verdict }, ...)
+18.     processedIds.add(envelope.eventId)
+19.     message.ack()
+20.   } catch (err) {
+21.     logger.error({ err, messageId: message.id })
+22.     message.nack()
+23.   }
+24. })
+25. SIGINT → subscription.close()
 ```
 
 ### 15.3 Formato de log (demo PI / vídeo)
@@ -781,7 +788,7 @@ npm install @google-cloud/pubsub
   "event": "qr_analyzed_consumed",
   "eventId": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
   "correlationId": "req-...",
-  "idUser": "usr_test_001",
+  "idUser": "Vb3ubOjy9RYt9AKpx3VzunBirEc2",
   "verdict": "unsafe",
   "contentDigest": "a1b2c3d4e5f67890",
   "host": "clone-exemplo.com",
@@ -823,32 +830,45 @@ cd safe_qr_back
 npm run dev
 ```
 
-**Terminal 2 — Consumidor:**
+**Terminal 2 — Consumidor histórico (obrigatório para o app listar scans):**
 
 ```bash
 cd safe_qr_messaging
-npm run consume:events
+npm run consume:history
 ```
 
-**Terminal 3 — Trigger:**
+**Terminal 3 (opcional) — Auditoria:**
 
 ```bash
+cd safe_qr_messaging
+npm run consume:audit
+# alias: npm run consume:events
+```
+
+**Trigger (app ou curl com Bearer):**
+
+```bash
+# Obter token: app em debug (SafeQR.Identity) ou Firebase CLI
 curl -s -X POST http://localhost:3000/v1/qr/analyze \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <Firebase_ID_Token>" \
   -d '{
     "rawContent": "https://example.com",
     "client": {
       "platform": "android",
-      "appVersion": "1.0.0",
-      "idUser": "usr_test_001"
+      "appVersion": "1.0.0"
     }
   }' | jq
 ```
 
+Sem Bearer → **401** (evento não publicado).
+
 **Verificar:**
 
-1. Terminal consumidor: log `qr_analyzed_consumed` com `eventId`, `idUser`, `verdict`
-2. Pub/Sub Console: métricas **Publish** e **Ack** incrementadas
+1. Terminal `consume:history`: log `qr_analyzed_consumed` com `eventId`, `idUser`, `verdict`
+2. Firestore: `history/{uid}/items/{eventId}`
+3. App: aba Histórico (refresh) lista o scan
+4. Pub/Sub Console: métricas **Publish** e **Ack** incrementadas
 
 ### 17.2 Testes unitários
 
@@ -872,24 +892,25 @@ curl -s -X POST http://localhost:3000/v1/qr/analyze \
 
 ### Fase B — `safe_qr_messaging`
 
-- [ ] Scaffold repo
-- [ ] Schema Zod envelope
-- [ ] Subscriber + handler (validate + log)
-- [ ] Dedupe `eventId`
-- [ ] Script `consume:events`
-- [ ] Testes unitários
+- [x] Scaffold repo
+- [x] Schema Zod envelope
+- [x] Fan-out: `consume:history` + `consume:audit`
+- [x] Handlers Firestore (`history/{uid}/items`, `scan_events/{id}`)
+- [x] Dedupe `eventId`
+- [x] Testes unitários
 
 ### Fase C — `safe_qr_back` produtor
 
-- [ ] `@google-cloud/pubsub`
-- [ ] Publisher port + impl + null
-- [ ] `deriveReasonCodes`
-- [ ] Controller + `client.idUser`
+- [x] `@google-cloud/pubsub`
+- [x] Publisher + `build-qr-analyzed-history-item`
+- [x] Bearer obrigatório no analyze (`resolveBearerUid`)
+- [x] `idUser` no evento = `decoded.uid` (não do body)
 
 ### Fase D — `safe_qr_app`
 
-- [ ] `UserIdentityService`
-- [ ] Enviar `client.idUser`
+- [x] `UserIdentityService` (Firebase Anonymous)
+- [x] `AuthenticatedAppNetwork` (Bearer automático)
+- [x] Histórico remoto via `GET /v1/history` (sem gravar scan local)
 
 ### Fase E — Evidências PI
 
@@ -916,9 +937,9 @@ curl -s -X POST http://localhost:3000/v1/qr/analyze \
 | Regra | Implementação |
 |-------|---------------|
 | Sem URL completa | Só `contentDigest` + `parsed.host` |
-| `idUser` pseudônimo | UUID local; não e-mail |
+| `idUser` pseudônimo | Firebase UID anónimo; não e-mail |
 | Credenciais fora do Git | `.gitignore` |
-| Least privilege | SA consumer **sem** acesso Firestore |
+| Least privilege | SA consumer: `pubsub.subscriber` + `datastore.user` (só escrita nos paths do handler) |
 | Logs | Pino; nunca `rawContent` |
 
 ---

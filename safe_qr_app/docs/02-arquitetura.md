@@ -88,7 +88,7 @@ sequenceDiagram
   participant VM as QrReaderViewModel
   participant UC as AnalyzeQrCode
   participant Repo as QrAnalyzeRepository
-  participant Hist as AddHistoryItem
+  participant Net as AuthenticatedAppNetwork
   participant DB as SQLite
 
   U->>R: Aponta câmera ao QR
@@ -97,14 +97,16 @@ sequenceDiagram
   alt ANALYZE_MODE=local
     UC->>Repo: LocalHeuristicQrAnalyzeRepository
     Repo->>Repo: QrLocalHeuristicEngine.evaluate()
+    Repo-->>UC: QrAnalysisResult
+    Note over VM: Scan local não grava histórico (só gerador)
   else ANALYZE_MODE=remote
     UC->>Repo: RemoteQrAnalyzeRepository
-    Repo->>Repo: POST /v1/qr/analyze
+    Repo->>Net: POST /v1/qr/analyze + Bearer
+    Net-->>Repo: JSON verdict
+    Repo-->>UC: QrAnalysisResult
+    Note over Repo: Histórico gravado pelo back (Pub/Sub)
   end
-  Repo-->>UC: QrAnalysisResult
   UC-->>VM: resultado
-  VM->>Hist: add(HistoryItem)
-  Hist->>DB: INSERT
   VM-->>R: QrAnalysisResult
   R->>R: push ScanResultPage
 ```
@@ -119,9 +121,10 @@ Registrado em `lib/app/di/dependency_injection.dart`:
 | `SharedPreferences` | Singleton | Preferências do SO |
 | `AppThemeModeController` | Singleton | Tema persistido |
 | `Database` | Singleton | `AppDatabaseBootstrapper` |
-| `HistoryRepository` | Lazy singleton | `HistoryRepositoryImpl` |
+| `HistoryRepository` | Lazy singleton | `HistoryRepositoryImpl` (local) ou `RemoteHistoryRepository` (remote) |
 | `QrAnalyzeRepository` | Lazy singleton | Local **ou** Remote (conforme `ANALYZE_MODE`) |
-| `Dio` / `AppNetwork` | Singleton / Lazy | `DioAppNetwork` |
+| `UserIdentityService` | Lazy singleton | UID + JWT para `AuthenticatedAppNetwork` |
+| `Dio` / `AppNetwork` | Singleton / Lazy | `AuthenticatedAppNetwork` → `DioAppNetwork` |
 | ViewModels | Lazy singleton | `QrReaderViewModel`, `QrGeneratorViewModel`, `QrHistoryViewModel` |
 | Use cases | Lazy singleton | `AnalyzeQrCode`, `AddHistoryItem`, etc. |
 
@@ -142,11 +145,12 @@ return RemoteQrAnalyzeRepository(sl());
 
 ## Rede
 
-Abstração `AppNetwork` (interface) → `DioAppNetwork` (implementação):
+Abstração `AppNetwork`:
 
-- Timeouts configuráveis via `.env`
-- Erros mapeados para `AppHttpException` / `AppNetworkException`
-- Logs de debug via `AppDebugLog` (tags `SafeQR.Net`, `SafeQR.Reader`)
+- `AuthenticatedAppNetwork` — injeta Bearer JWT (`UserIdentityService`)
+- `DioAppNetwork` — Dio, timeouts, erros (`AppHttpException` / `AppNetworkException`)
+- GET/DELETE sem `Content-Type` (corpo vazio)
+- Logs: `SafeQR.Net`, `SafeQR.Reader`, `SafeQR.History`, `SafeQR.Identity`
 
 ## Navegação
 

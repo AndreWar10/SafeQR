@@ -30,7 +30,7 @@ O celular costuma abrir o destino **sem camada intermediária** de análise. O S
 | **Feedback claro** | Veredito: `safe`, `suspicious`, `unsafe`, `unknown` + razões |
 | **Ações conscientes** | Abrir URL externamente, copiar conteúdo, permanecer no app |
 | **Gerador de QR** | Cria QR para texto, URL, Wi-Fi, e-mail, telefone, SMS |
-| **Histórico local** | Registra leituras e QR gerados no dispositivo |
+| **Histórico** | Local (SQLite) ou nuvem (API), conforme `ANALYZE_MODE` |
 
 ## Escopo atual (Sprint 1+)
 
@@ -40,14 +40,14 @@ O celular costuma abrir o destino **sem camada intermediária** de análise. O S
 - Análise heurística local (`QrLocalHeuristicEngine`)
 - Integração com API remota (`POST /v1/qr/analyze`)
 - Gerador funcional com export PNG (galeria + compartilhar)
-- Histórico persistente em SQLite
-- Tema claro/escuro/sistema
+- Histórico: SQLite (`local`) ou API Firestore (`remote`)
+- Identidade Firebase Anonymous + Bearer JWT em pedidos remotos
+- Tema claro/escuro (padrão escuro)
 - Testes unitários e smoke tests
 
 ### Fora do escopo (explícito)
 
-- Conta de usuário, login, OAuth
-- Sincronização de histórico na nuvem
+- Conta de usuário com e-mail/senha, login social
 - Publicação em lojas (Play/App Store)
 - Motor ML ou listas negras globais completas
 - Conformidade LGPD ponta a ponta (apenas princípios documentados)

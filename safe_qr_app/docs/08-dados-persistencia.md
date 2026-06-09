@@ -132,7 +132,7 @@ abstract class HistoryRepository {
 
 | Chave | Valor | Controller |
 |-------|-------|------------|
-| `safe_qr_theme_mode` (configurável) | `light`, `dark`, `system` | `AppThemeModeController` |
+| `safe_qr_theme_mode` (configurável) | `light`, `dark` (padrão: escuro se ausente) | `AppThemeModeController` |
 
 Chave definida por `THEME_PERSISTENCE_KEY` no `.env`.
 
@@ -140,26 +140,37 @@ Chave definida por `THEME_PERSISTENCE_KEY` no `.env`.
 
 ## Fluxo de dados — scan
 
+### Modo `remote`
+
 ```mermaid
 flowchart LR
   Scan[QR escaneado] --> VM[QrReaderViewModel]
   VM --> UC[AnalyzeQrCode]
-  UC --> Result[QrAnalysisResult]
-  VM --> Item[HistoryItem type=scan]
-  Item --> Mapper[HistoryDataMapper]
-  Mapper --> DB[(SQLite history)]
+  UC --> API[POST /v1/qr/analyze]
+  API --> Result[QrAnalysisResult]
+  API --> Back[Back + Pub/Sub]
+  Back --> FS[(Firestore history)]
+  UI[QrHistoryPage] --> GET[GET /v1/history]
+  GET --> FS
 ```
 
-## Fluxo de dados — geração
+### Modo `local`
 
 ```mermaid
 flowchart LR
-  Form[Formulário] --> Builder[QrPayloadBuilder]
-  Builder --> Payload[String]
-  Payload --> VM[QrGeneratorViewModel]
-  VM --> Item[HistoryItem type=generated]
-  Item --> DB[(SQLite history)]
+  Scan[QR escaneado] --> VM[QrReaderViewModel]
+  VM --> UC[AnalyzeQrCode local]
+  UC --> Result[QrAnalysisResult]
 ```
+
+Scans em `local` **não** são gravados automaticamente no histórico (só QR gerados via gerador).
+
+## Fluxo de dados — geração
+
+| Modo | Destino |
+|------|---------|
+| `local` | SQLite via `AddHistoryItem` |
+| `remote` | `POST /v1/history` ao salvar no gerador |
 
 ---
 
@@ -182,4 +193,5 @@ Diagrama acadêmico em [`../../docs/SPRINT-1-ENTREGAVEIS.md`](../../docs/SPRINT-
 
 - `USER` (futuro)
 - `QR_SCAN` / `QR_GENERATION` (server-side futuro)
-- No app S1: tudo unificado na tabela `history` local
+- Modo `local`: tabela `history` SQLite
+- Modo `remote`: histórico na nuvem (`GET/DELETE /v1/history`)

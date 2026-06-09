@@ -19,7 +19,7 @@
 | RF-M06 | Ações: abrir URL, copiar, voltar, cancelar | Should | ⚠️ Parcial | Ver gaps G1–G4 abaixo |
 | RF-M07 | Menu 3 abas | Must | ✅ Atendido | Ler / Gerar / Histórico |
 | RF-M08 | Gerador texto/URL + QR visual | Should | ✅ Atendido | Excede S1 (7 tipos, export PNG) |
-| RF-M09 | Histórico local | Should | ✅ Atendido | SQLite + CRUD na UI |
+| RF-M09 | Histórico | Should | ✅ Atendido | SQLite (`local`) ou API (`remote`); seleção + apagar |
 | RF-M10 | Erros rede/timeout amigáveis | Should | ⚠️ Parcial | SnackBar OK; **falta mensagem 413** e permissão câmera |
 
 ### Legenda

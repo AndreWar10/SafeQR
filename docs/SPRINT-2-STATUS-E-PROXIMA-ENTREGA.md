@@ -14,9 +14,9 @@
 
 ## 1. Resumo executivo (o que dizer em 1 minuto)
 
-O **Safe QR** já permite: ler um QR no **Flutter**, enviar o conteúdo para a **API Node (Fastify)**, receber **veredito** (seguro / suspeito / inseguro) com **motivos**, e usar **lista de domínios suspeitos** no **Firestore** (conta de serviço no back). O **histórico de scans** fica em **SQLite no telemóvel**. O projeto **Firebase** está criado e o **back** integra Firestore para a coleção `suspicious_hosts` / documento `clones`.
+O **Safe QR** já permite: ler um QR no **Flutter**, enviar o conteúdo para a **API Node (Fastify)** com **Bearer JWT** (Firebase Anonymous Auth), receber **veredito** (seguro / suspeito / inseguro) com **motivos**, e usar **lista de domínios suspeitos** no **Firestore**. Em modo **remoto**, o **histórico de scans** fica na nuvem (`history/{uid}/items`) via **Pub/Sub** (`consume:history`); em modo **local**, permanece em **SQLite** no telemóvel.
 
-Para o checklist literal da 2ª sprint, **falta fechar** sobretudo: **CRUD no servidor**, **BD servidor com dados de teste** (além do Firestore de listas) e **deploy / doc de nuvem** mais explícitos. Na **próxima sprint** planeia-se **mensageria** com **Google Cloud Pub/Sub** após cada análise bem-sucedida.
+Para o checklist literal da 2ª sprint, **falta fechar** sobretudo: **deploy / doc de nuvem** mais explícitos e **evidências** (prints). **CRUD de histórico** e **mensageria Pub/Sub** já estão implementados.
 
 ---
 
@@ -36,7 +36,8 @@ Para o checklist literal da 2ª sprint, **falta fechar** sobretudo: **CRUD no se
 | Abrir links no navegador | **url_launcher** (`LaunchMode.externalApplication`) |
 | Histórico no dispositivo | **sqflite** + **path** / **path_provider** |
 | Preferências (tema, etc.) | **shared_preferences** |
-| Nuvem (cliente Firebase) | **firebase_core**, **cloud_firestore** (inicialização; evolução futura) |
+| Identidade / JWT | **firebase_core**, **firebase_auth** (sessão anónima → Bearer) |
+| Nuvem (cliente Firebase) | **cloud_firestore** (declarado; evolução futura no mobile) |
 | Testes | **flutter_test**, **mocktail** |
 
 ### API — `safe_qr_back` (Node.js)
@@ -73,20 +74,23 @@ flowchart LR
   subgraph device[Telemóvel - Flutter]
     UI[UI - abas Ler / Gerar / Histórico]
     CAM[Câmera - mobile_scanner]
-    SQLITE[(SQLite - histórico)]
-    DIO[Dio - HTTP]
+    NET[AuthenticatedAppNetwork + Bearer]
     UI --> CAM
-    UI --> DIO
-    UI --> SQLITE
+    UI --> NET
   end
   subgraph lan[Rede local / internet]
     API[Node - Fastify :3000]
   end
-  subgraph gcp[Google Cloud - Firebase]
+  subgraph gcp[Google Cloud]
     FS[(Firestore)]
+    PS[Pub/Sub safe-qr-analyze-events]
+    MSG[safe_qr_messaging]
   end
-  DIO -->|POST /v1/qr/analyze| API
+  NET -->|POST /v1/qr/analyze + GET /v1/history| API
   API -->|leitura lista clones| FS
+  API -->|publish qr.analyzed| PS
+  PS --> MSG
+  MSG -->|consume:history| FS
 ```
 
 ### 3.2 Camadas no código (disciplina de projeto)
@@ -103,25 +107,34 @@ sequenceDiagram
   participant A as App Flutter
   participant B as API Fastify
   participant F as Firestore
+  participant P as Pub/Sub
+  participant M as consume:history
   U->>A: Aponta câmera ao QR
-  A->>B: POST /v1/qr/analyze JSON rawContent
+  A->>B: POST /v1/qr/analyze + Bearer JWT
   B->>F: Ler suspicious_hosts/clones urls cache
   F-->>B: Lista de hosts
   B->>B: Heurística + cruzamento lista
   B-->>A: 200 verdict reasons parsed
-  A->>A: Grava histórico SQLite
+  B->>P: publish qr.analyzed
+  P->>M: fan-out
+  M->>F: history/{uid}/items/{eventId}
   A-->>U: Ecrã resultado + abrir no navegador
+  Note over A: Histórico: GET /v1/history (não grava scan local)
 ```
 
 ---
 
-## 4. API REST atual (sem CRUD completo)
+## 4. API REST atual
 
 | Método | Caminho | Descrição |
 |--------|---------|-----------|
 | `GET` | `/v1/health` | Health check |
 | `GET` | `/health` | Alias do health |
-| `POST` | `/v1/qr/analyze` | Corpo: `rawContent` (+ `client` opcional). Resposta: `requestId`, `verdict`, `safeToOpen`, `reasons`, `parsed` |
+| `POST` | `/v1/qr/analyze` | Bearer obrigatório. Corpo: `rawContent` + `client`. Publica `qr.analyzed` se 200 |
+| `GET` | `/v1/history` | Lista histórico do utilizador (Bearer) |
+| `POST` | `/v1/history` | Cria item (ex.: QR gerado) |
+| `DELETE` | `/v1/history/{id}` | Apaga item |
+| `DELETE` | `/v1/history` | Limpa histórico |
 
 **Erros comuns:** `400` (validação Zod), `413` (payload acima do limite configurável).
 
@@ -147,9 +160,9 @@ O back **não** está num repositório separado neste layout; sobe com `cd safe_
 
 | Exigência | Estado atual | Notas / evidências sugeridas |
 |-----------|--------------|------------------------------|
-| **Back-end — CRUD básico** | **Parcial** | Há **`GET /v1/health`**, **`POST /v1/qr/analyze`** e integração **Firestore** (leitura da lista). Não há ainda CRUD clássico REST (ex.: `GET/POST/PATCH/DELETE` de recurso em BD servidor). *Próximo passo:* expor recurso simples (ex.: `scan_events` ou `reports`) com **Create + List** em **Firestore** ou **PostgreSQL**. |
-| **Front-end integrado ao back** | **Feito (MVP)** | App chama **`POST /v1/qr/analyze`**, trata erro de rede/timeout, modo **local/remoto** via `.env`. *Evidência:* print do Postman + print do resultado no app. |
-| **Banco de dados + dados de teste** | **Parcial** | **Firestore:** documento `suspicious_hosts/clones` com array `urls` (dados de teste para clones). **SQLite no app:** histórico local. **Falta para o enunciado “BD + populado”:** dados de teste **no servidor** para um CRUD (ex.: coleção `demo_items` ou tabela SQL com seed). |
+| **Back-end — CRUD básico** | **Feito (histórico)** | **`GET/POST/DELETE /v1/history`** + **`POST /v1/qr/analyze`**. Persistência Firestore `history/{uid}/items`. Auditoria: `scan_events/{id}` via `consume:audit`. |
+| **Front-end integrado ao back** | **Feito** | `AuthenticatedAppNetwork` (Bearer automático), analyze remoto, histórico remoto (`GET /v1/history`), modo **local/remoto** via `.env`. |
+| **Banco de dados + dados de teste** | **Feito (Firestore)** | **Firestore:** `suspicious_hosts/clones`, `history/{uid}/items` (populado por scans + `consume:history`), `scan_events` (audit). **SQLite:** histórico só em `ANALYZE_MODE=local`. |
 | **Nuvem + documentação inicial** | **Parcial** | **Firebase** (projeto, Firestore, conta de serviço para o Node). Falta **documentar URL de API em nuvem** (se deploy existir) ou **plano de deploy** (Cloud Run / Cloud Functions / Render) + print da consola GCP/Firebase. |
 | **Documentação / evidências** | **Em curso** | Este ficheiro + `SPRINT-1-ENTREGAVEIS.md` + READMEs do `safe_qr_app` e `safe_qr_back`. Acrescentar **prints** (Firebase, Postman, app) no relatório da equipa. |
 
@@ -162,16 +175,20 @@ O back **não** está num repositório separado neste layout; sobe com `cd safe_
 - Splash, shell com **3 abas** (leitor, gerador, histórico).
 - **Leitura de QR** com câmera; envio do payload para análise (**remota** ou heurística local).
 - Exibição de **veredito**, motivos e fluxo de erro de rede.
-- **Histórico** persistido em **SQLite** no dispositivo.
-- **Firebase** inicializado (`firebase_options` / `Firebase.initializeApp` no `main.dart`).
+- **Histórico remoto:** `RemoteHistoryRepository` + `GET /v1/history` (scans via Pub/Sub).
+- **Histórico local:** SQLite quando `ANALYZE_MODE=local`.
+- **`AuthenticatedAppNetwork`** — Bearer JWT em todos os pedidos ao back.
+- **Firebase** Anonymous Auth no bootstrap (`UserIdentityService`).
 - Configuração via **`assets/.env`** (`API_BASE_URL`, `ANALYZE_MODE`, etc.).
 
 ### Back-end (`safe_qr_back`)
 
 - **Fastify** + **Zod** + logs estruturados (Pino).
 - **`GET /v1/health`** (e alias `/health`).
-- **`POST /v1/qr/analyze`**: validação, limite de tamanho, heurística alinhada ao motor local.
-- **Firestore (Admin SDK):** leitura de **`suspicious_hosts/clones`** (`urls`) para marcar **unsafe** quando o hostname coincide (com cache configurável).
+- **`POST /v1/qr/analyze`**: Bearer obrigatório, validação, heurística, publish Pub/Sub.
+- **CRUD `/v1/history`**: Firestore `history/{uid}/items`.
+- **Firestore (Admin SDK):** leitura de **`suspicious_hosts/clones`** + escrita de histórico.
+- **Pub/Sub produtor:** evento `qr.analyzed` com `historyItem` (ver `docs/13-pubsub-qr-analyzed.md`).
 - **`.env`** com **`dotenv`**; exemplo em **`.env.example`**; chaves `safe-qr-app-*.json` no **`.gitignore`**.
 - **Testes** (Vitest): health + contrato analyze + testes da lista (mock) + match de host.
 
@@ -179,9 +196,9 @@ O back **não** está num repositório separado neste layout; sobe com `cd safe_
 
 ## 8. O que falta para “cumprir ao pé da letra” o checklist
 
-1. **CRUD no back:** pelo menos **criar + listar** um recurso (ex.: registo de análise agregada ou itens de demo) persistido em **Firestore** ou **SQL**, com **seed** de dados de teste.
-2. **Documentação de nuvem:** 1–2 páginas com **diagrama** (app → API → Firestore), **variáveis de ambiente** em produção, e **evidência** (print da consola ou URL pública se existir deploy).
-3. **Evidências para o professor:** prints (Postman, Firebase, Android) + link ou anexo do repositório.
+1. **Documentação de nuvem:** diagrama (app → API → Pub/Sub → Firestore), **variáveis de ambiente** em produção, URL pública se existir deploy (Cloud Run).
+2. **Evidências para o professor:** prints (Postman com Bearer, Firebase `history/`, consumidor `consume:history`, app Android) + link do repositório.
+3. **GCP manual:** subscription `safe-qr-analyze-events-sub-history` se ainda não criada.
 
 ---
 

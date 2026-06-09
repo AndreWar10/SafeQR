@@ -189,15 +189,25 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIs...
 
 ## Integração Flutter
 
-```dart
-final token = await FirebaseAuth.instance.currentUser!.getIdToken();
+O app usa `RemoteHistoryRepository` com `AuthenticatedAppNetwork` — Bearer injetado automaticamente (mesmo padrão do analyze).
 
-await dio.post(
-  '/v1/history',
-  data: { 'item': ..., 'client': { 'appVersion': '1.0.0', 'platform': 'android' } },
-  options: Options(headers: { 'Authorization': 'Bearer $token' }),
+```dart
+// dependency_injection.dart
+registerLazySingleton<AppNetwork>(
+  () => AuthenticatedAppNetwork(inner: DioAppNetwork(dio: sl()), identity: sl()),
+);
+
+// RemoteHistoryRepository — sem header manual
+await _net.post(
+  AppEndpoints.history,
+  body: {
+    'item': HistoryApiMapper.itemToApiJson(item),
+    'client': {'appVersion': '1.0.0', 'platform': 'android'},
+  },
 );
 ```
+
+Ver também: [`safe_qr_app/docs/07-api-integracao.md`](../../safe_qr_app/docs/07-api-integracao.md).
 
 ---
 

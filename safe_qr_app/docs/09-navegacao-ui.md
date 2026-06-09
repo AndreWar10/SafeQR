@@ -33,8 +33,10 @@ flowchart TD
 | `QrReaderPage` | `ScanResultPage` | `MaterialPageRoute` push | Recebe `result` + `raw` |
 | `QrGeneratorPage` | Overlay gerando | `showDialog` (root navigator) | 2 segundos fixos |
 | `QrGeneratorPage` | `QrGeneratorResultPage` | `MaterialPageRoute` push | Recebe `payload` |
-| `QrHistoryPage` | Detalhe | `showModalBottomSheet` | Conteúdo + razões |
-| `QrHistoryPage` | Limpar tudo | `showDialog` | Confirmação |
+| `QrHistoryPage` | Detalhe | `showModalBottomSheet` | Toque no card — conteúdo + razões |
+| `QrHistoryPage` | Seleção | Long press no card | Checkbox visual |
+| `QrHistoryPage` | Apagar selecionados | Barra inferior + `showDialog` | Confirmação |
+| `QrHistoryPage` | Apagar um | `Dismissible` swipe | Sem seleção ativa |
 
 ### Shell — abas
 
@@ -61,9 +63,12 @@ flowchart TD
 
 Widget: `ThemeCycleAction` no AppBar do shell
 
-Ordem: **Sistema → Claro → Escuro → Sistema**
+Alternância: **Escuro ↔ Claro** (ícone indica o próximo modo).
 
-Persistido via `AppThemeModeController` + `SharedPreferences`.
+- Primeira abertura (sem preferência salva): **escuro**
+- Valor antigo `system` em cache: tratado como escuro até o utilizador mudar
+
+Persistido via `AppThemeModeController` + `SharedPreferences` (`light` / `dark`).
 
 ---
 

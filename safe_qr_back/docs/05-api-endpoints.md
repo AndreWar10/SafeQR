@@ -84,19 +84,18 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIs...
   "rawContent": "https://example.com/path",
   "client": {
     "appVersion": "1.0.0",
-    "platform": "android",
-    "idUser": "Vb3ubOjy9RYt9AKpx3VzunBirEc2"
+    "platform": "android"
   }
 }
 ```
 
-> `client.idUser` é opcional e ignorado para auth — o `idUser` vem só do JWT.
+> O app Flutter envia só `appVersion` e `platform` em `client`. O `idUser` vem **só** do JWT — não enviar UID no body.
 
 **Body — encurtador (suspicious):**
 ```json
 {
   "rawContent": "https://bit.ly/abc123",
-  "client": { "platform": "android", "idUser": "Vb3ubOjy9RYt9AKpx3VzunBirEc2" }
+  "client": { "platform": "android" }
 }
 ```
 

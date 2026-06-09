@@ -26,7 +26,7 @@ lib/
 │   │   └── app_build_info.dart        # versionLabel, buildNumber
 │   ├── constants/
 │   │   ├── app_strings.dart           # Strings pt-BR da UI
-│   │   ├── app_endpoints.dart         # /v1/health, /v1/qr/analyze
+│   │   ├── app_endpoints.dart         # /v1/health, /v1/qr/analyze, /v1/history
 │   │   ├── app_env_keys.dart          # Chaves do .env
 │   │   └── app_assets.dart            # Caminhos de assets
 │   ├── database/
@@ -35,9 +35,9 @@ lib/
 │   ├── logging/
 │   │   └── app_debug_log.dart         # Logs tagueados (debug)
 │   ├── network/
-│   │   ├── app_network.dart           # Interface abstrata
-│   │   ├── dio_app_network.dart       # Implementação Dio
-│   │   └── app_network_exception.dart # Exceções HTTP/rede
+│   │   ├── app_network.dart              # Interface + DioAppNetwork
+│   │   ├── authenticated_app_network.dart # Decorator Bearer JWT
+│   │   └── app_network_exception.dart    # Exceções HTTP/rede
 │   └── theme/
 │       ├── app_theme.dart             # Material 3 light/dark
 │       ├── app_color_tokens.dart      # Tokens de cor
@@ -79,7 +79,10 @@ lib/
 │       │   └── use_cases/             # add, load, delete, clear
 │       ├── data/
 │       │   ├── history_data_mapper.dart
-│       │   └── repositories/history_repository_impl.dart
+│       │   ├── history_api_mapper.dart
+│       │   └── repositories/
+│       │       ├── history_repository_impl.dart   # SQLite (local)
+│       │       └── remote_history_repository.dart # API (remote)
 │       └── presentation/
 │           ├── pages/qr_history_page.dart
 │           └── view_models/qr_history_view_model.dart

@@ -46,7 +46,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"rawContent\": \"https://example.com/path\",\n  \"client\": {\n    \"appVersion\": \"1.0.0\",\n    \"platform\": \"android\",\n    \"idUser\": \"Vb3ubOjy9RYt9AKpx3VzunBirEc2\"\n  }\n}"
+              "raw": "{\n  \"rawContent\": \"https://example.com/path\",\n  \"client\": {\n    \"appVersion\": \"1.0.0\",\n    \"platform\": \"android\"\n  }\n}"
             },
             "url": "{{baseUrl}}/v1/qr/analyze"
           }

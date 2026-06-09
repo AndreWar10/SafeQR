@@ -287,7 +287,7 @@ safe_qr_messaging/
 
 ```
 safe-qr-mobile/
-├── safe_qr_app/          # Flutter — idUser + scan
+├── safe_qr_app/          # Flutter — Bearer JWT + scan
 ├── safe_qr_back/         # API — produtor Pub/Sub
 └── safe_qr_messaging/    # Este repo — consumidor
 ```

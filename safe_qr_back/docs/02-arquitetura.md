@@ -131,17 +131,28 @@ sequenceDiagram
 Não há container DI (get_it, awilix). A composição é **manual** em `v1.routes.ts`:
 
 ```typescript
+const userIdentity = createUserIdentity(env); // FirebaseUserIdentityService
 const analyzeService = new QrAnalyzeService(createSuspiciousHostsPort(env));
-const qrAnalyze = new QrAnalyzeController({ env, service: analyzeService });
+const eventPublisher = createAnalyzeEventPublisher(env, logger);
+const qrAnalyze = new QrAnalyzeController({
+  env,
+  service: analyzeService,
+  eventPublisher,
+  userIdentity,
+});
+const history = new HistoryController({
+  service: new HistoryService(createHistoryRepository(env)),
+  userIdentity, // mesmo serviço de auth
+});
 ```
 
-Isso mantém o projeto simples e permite substituir `SuspiciousHostsPort` nos testes.
+Isso mantém o projeto simples e permite substituir portas (`SuspiciousHostsPort`, `UserIdentityPort`) nos testes.
 
 ## Error handling
 
 | Camada | Comportamento |
 |--------|---------------|
-| Controller | Retorna `400` (Zod) e `413` (tamanho) via views |
+| Controller | Retorna `401` (Bearer), `400` (Zod) e `413` (tamanho) via views |
 | `app.setErrorHandler` | `400` para erros de validação Fastify; `500` genérico |
 | Firestore | **Fail-open** — `console.warn` + retorna `false` (não lista) |
 
@@ -149,7 +160,7 @@ Isso mantém o projeto simples e permite substituir `SuspiciousHostsPort` nos te
 
 - **Request ID:** UUID gerado por requisição (`genReqId`), exposto no header `x-request-id`
 - **Logs:** Pino com `base: { service: 'safe-qr-api' }`
-- **Evento de análise:** `event: 'qr_analyze'` com `rawByteLength`, `contentDigest`, metadados do client
+- **Evento de análise:** `event: 'qr_analyze'` com `rawByteLength`, `contentDigest`, `idUser`, metadados do client
 
 ## Estrutura de pastas detalhada
 

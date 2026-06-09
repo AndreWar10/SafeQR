@@ -37,21 +37,22 @@ Conteúdo é clipado em **2000 caracteres** antes do envio.
 
 ## O que fica no aparelho
 
-| Dado | Armazenamento | Conteúdo |
-|------|---------------|----------|
-| Histórico de scans | SQLite | Payload, veredito, razões, timestamp |
-| Histórico de gerados | SQLite | Payload, timestamp |
-| Preferência de tema | SharedPreferences | `light`/`dark`/`system` |
-| Senhas Wi-Fi em QR gerados | SQLite (histórico) | Parte do payload `WIFI:...` |
+| Dado | Modo local | Modo remote |
+|------|------------|-------------|
+| Histórico de scans | SQLite | Firestore via API |
+| Histórico de gerados | SQLite | Firestore via API (se salvo) |
+| Preferência de tema | SharedPreferences `light`/`dark` | Igual |
+| Sessão anónima | Firebase Auth SDK | Igual |
 
-O usuário pode apagar itens individualmente ou limpar todo o histórico.
+O usuário apaga itens por swipe, ou vários via seleção (long press) + **Apagar selecionados**.
+
+Senhas Wi-Fi em QR gerados permanecem no payload `WIFI:...` do histórico.
 
 ---
 
 ## O que o app NÃO inclui (Sprint 1)
 
-- Conta de usuário ou autenticação
-- Sincronização de histórico na nuvem
+- Login com e-mail, Google, Apple, etc.
 - Analytics de terceiros (Firebase Analytics não configurado)
 - WebView embutido para URLs
 - Armazenamento de credenciais do usuário
@@ -85,8 +86,8 @@ O servidor loga **tamanho em bytes** e **hash SHA-256 truncado** — não o cont
 
 ### Firebase
 
-- `firebase_core` inicializado
-- `cloud_firestore` não usado no app — sem leitura/escrita de dados do usuário via Firestore no mobile
+- `firebase_core` + `firebase_auth` (sessão anónima → Bearer JWT)
+- `cloud_firestore` não usado diretamente no app — histórico remoto via REST API do back
 
 ### Secrets
 
@@ -109,7 +110,7 @@ WIFI:T:WPA;S:minha-rede;P:senha123;;
 
 Esses dados:
 
-- Ficam no histórico local SQLite
+- Ficam no histórico (SQLite local ou nuvem, conforme modo)
 - Podem ser compartilhados como PNG (usuário decide)
 - **Não são enviados** ao backend a menos que o usuário escaneie o QR gerado em modo remote
 

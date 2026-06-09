@@ -70,4 +70,4 @@ npm run build && npm start   # produção
 
 ---
 
-*Última atualização: junho de 2026 — auth Firebase obrigatória em `POST /v1/qr/analyze` e `/v1/history`.*
+*Última atualização: junho de 2026 — auth Firebase obrigatória; app Flutter usa `AuthenticatedAppNetwork` (Bearer automático).*

@@ -5,7 +5,7 @@
 | Ator | Descrição |
 |------|-----------|
 | **Usuário final** | Escaneia QR no app Flutter; não interage diretamente com a API |
-| **App Flutter** | Cliente HTTP que chama `POST /v1/qr/analyze` em modo `remote` |
+| **App Flutter** | Cliente HTTP autenticado (`AuthenticatedAppNetwork`) — analyze e history em modo `remote` |
 | **DevOps / CI** | Consulta `GET /v1/health` para smoke tests e monitoramento |
 | **Administrador** (futuro) | Gerencia listas de domínios, métricas — **fora do escopo atual** |
 
@@ -165,6 +165,8 @@ Os testes em `test/` cobrem os cenários abaixo:
 | HTTPS simples | `qr-analyze.test.ts` | `safe` |
 | Encurtador bit.ly | `qr-analyze.test.ts` | `suspicious` |
 | `javascript:` | `qr-analyze.test.ts` | `unsafe` |
+| Sem Bearer | `qr-analyze.test.ts` | `401` |
+| Só `client.idUser` sem Bearer | `qr-analyze.test.ts` | `401` |
 | `rawContent` vazio | `qr-analyze.test.ts` | `400` |
 | Payload > limite | `qr-analyze.test.ts` | `413` |
 | Host na lista mock | `qr-analyze-clones.test.ts` | `unsafe` |
